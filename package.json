@@ -1,0 +1,19 @@
+{
+  "name": "the-icon-cyber-cafe",
+  "version": "1.0.0",
+  "description": "Monorepo for ICON CYBER CAFE",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "client"
+  ],
+  "scripts": {
+    "install:all": "npm install",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:client": "npm run dev --workspace=client",
+    "dev": "npx concurrently \"npm run dev:backend\" \"npm run dev:client\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

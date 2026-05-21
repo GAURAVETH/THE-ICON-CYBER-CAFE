@@ -1,0 +1,16 @@
+import express from "express";
+import multer from "multer";
+import { uploadFile } from "../controllers/uploadController.js";
+
+const router = express.Router();
+
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+        fileSize: 10 * 1024 * 1024,
+    },
+});
+
+router.post("/", upload.array("files", 10), uploadFile);
+
+export default router;

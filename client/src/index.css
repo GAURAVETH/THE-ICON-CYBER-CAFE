@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Base body styles for smooth transition */
+body {
+    @apply transition-colors duration-200 bg-[#fafbfc] dark:bg-gray-900 text-gray-900 dark:text-gray-100;
+}
+
+/* Ensure all interactive elements have a pointer cursor */
+button, a, select, [role="button"] {
+    cursor: pointer;
+}

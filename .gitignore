@@ -1,0 +1,48 @@
+# dependencies
+node_modules/
+backend/node_modules/
+client/node_modules/
+
+
+# env files
+.env
+backend/.env
+client/.env
+
+# logs
+logs
+*.log
+npm-debug.log*
+
+# build folders
+dist/
+build/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# editor folders
+.vscode/
+.idea/
+
+# uploads/temp
+uploads/
+temp/
+
+# coverage
+coverage/
+
+# package lock optional
+package-lock.json
+
+# dotenv
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+
+backend/scripts/seed.js
+backend/IMPLEMENTATION_SUMMARY.md
+backend/QUICK_REFERENCE.md

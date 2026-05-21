@@ -1,0 +1,497 @@
+/**
+ * ICON CYBER CAFE - Backend API Testing Guide
+ * 
+ * This file contains step-by-step testing procedures for all backend APIs
+ * Use Postman or similar tools to execute these requests
+ * 
+ * Base URL: http://localhost:5000/api
+ */
+
+// ============================================
+// 1. AUTHENTICATION TESTING
+// ============================================
+
+// Test 1.1: Register New User
+POST /auth/register
+Content-Type: application/json
+
+{
+  "name": "Test User",
+  "email": "testuser@example.com",
+  "password": "Test@12345",
+  "confirmPassword": "Test@12345",
+  "role": "user"
+}
+
+// Expected Response: 201 Created
+// Save the token from response for next requests
+
+---
+
+// Test 1.2: Login User
+POST /auth/login
+Content-Type: application/json
+
+{
+  "email": "testuser@example.com",
+  "password": "Test@12345"
+}
+
+// Expected Response: 200 OK with token
+
+---
+
+// Test 1.3: Get Current User
+GET /auth/me
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+// Expected Response: 200 OK with user data
+
+---
+
+// Test 1.4: Update Profile
+PUT /auth/profile
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "name": "Updated User Name",
+  "phone": "9876543210",
+  "address": {
+    "street": "123 Main Street",
+    "city": "Mumbai",
+    "state": "Maharashtra",
+    "pincode": "400001",
+    "country": "India"
+  }
+}
+
+// Expected Response: 200 OK with updated user
+
+---
+
+// Test 1.5: Change Password
+PUT /auth/change-password
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "currentPassword": "Test@12345",
+  "newPassword": "NewTest@12345",
+  "confirmPassword": "NewTest@12345"
+}
+
+// Expected Response: 200 OK
+
+---
+
+// ============================================
+// 2. SERVICE TESTING
+// ============================================
+
+// Test 2.1: Get All Services (Public)
+GET /services
+GET /services?page=1&limit=10&category=document&search=income
+
+// Expected Response: 200 OK with services list
+
+---
+
+// Test 2.2: Get Service by ID
+GET /services/SERVICE_ID_HERE
+
+// Expected Response: 200 OK with service details
+
+---
+
+// Test 2.3: Create Service (Admin Only)
+POST /services
+Authorization: Bearer ADMIN_JWT_TOKEN
+Content-Type: application/json
+
+{
+  "title": "Income Certificate",
+  "description": "Government approved income certificate for official purposes",
+  "price": 500,
+  "category": "document",
+  "duration": {
+    "value": 2,
+    "unit": "hours"
+  },
+  "maxBookings": 20,
+  "emiOptions": {
+    "available": true,
+    "months": [3, 6, 12]
+  }
+}
+
+// Expected Response: 201 Created
+
+---
+
+// Test 2.4: Update Service (Admin Only)
+PUT /services/SERVICE_ID_HERE
+Authorization: Bearer ADMIN_JWT_TOKEN
+Content-Type: application/json
+
+{
+  "title": "Updated Income Certificate",
+  "price": 600,
+  "isActive": true
+}
+
+// Expected Response: 200 OK
+
+---
+
+// Test 2.5: Delete Service (Admin Only)
+DELETE /services/SERVICE_ID_HERE
+Authorization: Bearer ADMIN_JWT_TOKEN
+
+// Expected Response: 200 OK
+
+---
+
+// ============================================
+// 3. BOOKING TESTING
+// ============================================
+
+// Test 3.1: Create Booking
+POST /bookings
+Authorization: Bearer USER_JWT_TOKEN
+Content-Type: application/json
+
+{
+  "serviceId": "SERVICE_ID_HERE",
+  "bookingDate": "2024-12-25T10:00:00Z",
+  "description": "Need urgent income certificate for loan application",
+  "useEMI": false,
+  "emiMonths": null
+}
+
+// Expected Response: 201 Created with booking details
+
+---
+
+// Test 3.2: Get All User Bookings
+GET /bookings
+GET /bookings?page=1&limit=10&status=pending
+Authorization: Bearer USER_JWT_TOKEN
+
+// Expected Response: 200 OK with bookings list
+
+---
+
+// Test 3.3: Get Booking by ID
+GET /bookings/BOOKING_ID_HERE
+Authorization: Bearer USER_JWT_TOKEN
+
+// Expected Response: 200 OK with booking details
+
+---
+
+// Test 3.4: Update Booking Status (Admin)
+PUT /bookings/BOOKING_ID_HERE/status
+Authorization: Bearer ADMIN_JWT_TOKEN
+Content-Type: application/json
+
+{
+  "status": "confirmed"
+}
+
+// Possible statuses: pending, confirmed, in-progress, completed, cancelled
+// Expected Response: 200 OK
+
+---
+
+// Test 3.5: Rate Booking
+PUT /bookings/BOOKING_ID_HERE/rate
+Authorization: Bearer USER_JWT_TOKEN
+Content-Type: application/json
+
+{
+  "score": 5,
+  "comment": "Excellent service, fast and professional"
+}
+
+// Expected Response: 200 OK
+
+---
+
+// Test 3.6: Cancel Booking
+PUT /bookings/BOOKING_ID_HERE/cancel
+Authorization: Bearer USER_JWT_TOKEN
+
+// Expected Response: 200 OK
+
+---
+
+// Test 3.7: Get Booking Stats
+GET /bookings/stats/dashboard
+Authorization: Bearer USER_JWT_TOKEN
+
+// Expected Response: 200 OK with stats
+
+---
+
+// ============================================
+// 4. TASK TESTING
+// ============================================
+
+// Test 4.1: Create Task
+POST /tasks
+Authorization: Bearer USER_JWT_TOKEN
+Content-Type: application/json
+
+{
+  "title": "Prepare documents for booking",
+  "description": "Collect all necessary documents for income certificate booking",
+  "bookingId": "BOOKING_ID_HERE",
+  "priority": "high",
+  "dueDate": "2024-12-24T17:00:00Z"
+}
+
+// Expected Response: 201 Created
+
+---
+
+// Test 4.2: Get All Tasks
+GET /tasks
+GET /tasks?page=1&limit=10&status=pending&priority=high
+Authorization: Bearer USER_JWT_TOKEN
+
+// Expected Response: 200 OK with tasks
+
+---
+
+// Test 4.3: Update Task
+PUT /tasks/TASK_ID_HERE
+Authorization: Bearer USER_JWT_TOKEN
+Content-Type: application/json
+
+{
+  "title": "Updated Task Title",
+  "status": "in-progress",
+  "priority": "medium"
+}
+
+// Expected Response: 200 OK
+
+---
+
+// Test 4.4: Delete Task
+DELETE /tasks/TASK_ID_HERE
+Authorization: Bearer USER_JWT_TOKEN
+
+// Expected Response: 200 OK
+
+---
+
+// ============================================
+// 5. PAYMENT TESTING
+// ============================================
+
+// Test 5.1: Create Razorpay Order
+POST /payments/razorpay
+Authorization: Bearer USER_JWT_TOKEN
+Content-Type: application/json
+
+{
+  "bookingId": "BOOKING_ID_HERE",
+  "emiMonths": null
+}
+
+// Expected Response: 200 OK with order details
+
+---
+
+// Test 5.2: Verify Payment
+POST /payments/verify
+Authorization: Bearer USER_JWT_TOKEN
+Content-Type: application/json
+
+{
+  "bookingId": "BOOKING_ID_HERE",
+  "orderId": "RAZORPAY_ORDER_ID",
+  "paymentId": "RAZORPAY_PAYMENT_ID",
+  "signature": "RAZORPAY_SIGNATURE",
+  "paymentMethod": "credit_card",
+  "emiMonths": null
+}
+
+// Expected Response: 200 OK with payment details
+
+---
+
+// Test 5.3: Get All Payments
+GET /payments
+Authorization: Bearer USER_JWT_TOKEN
+
+// Expected Response: 200 OK with payments list
+
+---
+
+// Test 5.4: Get Payment Stats
+GET /payments/stats/dashboard
+Authorization: Bearer USER_JWT_TOKEN
+
+// Expected Response: 200 OK with payment statistics
+
+---
+
+// ============================================
+// 6. ADMIN TESTING
+// ============================================
+
+// Test 6.1: Get Dashboard Stats
+GET /admin/dashboard
+Authorization: Bearer ADMIN_JWT_TOKEN
+
+// Expected Response: 200 OK with dashboard data
+
+---
+
+// Test 6.2: Get All Users
+GET /admin/users
+GET /admin/users?page=1&limit=10&role=user&search=john
+Authorization: Bearer ADMIN_JWT_TOKEN
+
+// Expected Response: 200 OK with users list
+
+---
+
+// Test 6.3: Update User
+PUT /admin/users/USER_ID_HERE
+Authorization: Bearer ADMIN_JWT_TOKEN
+Content-Type: application/json
+
+{
+  "name": "Updated Name",
+  "role": "worker",
+  "isActive": true,
+  "phone": "9876543210"
+}
+
+// Expected Response: 200 OK
+
+---
+
+// Test 6.4: Deactivate User
+PUT /admin/users/USER_ID_HERE/deactivate
+Authorization: Bearer ADMIN_JWT_TOKEN
+
+// Expected Response: 200 OK
+
+---
+
+// Test 6.5: Delete User
+DELETE /admin/users/USER_ID_HERE
+Authorization: Bearer ADMIN_JWT_TOKEN
+
+// Expected Response: 200 OK
+
+---
+
+// Test 6.6: Get Revenue Analytics
+GET /admin/analytics/revenue
+Authorization: Bearer ADMIN_JWT_TOKEN
+
+// Expected Response: 200 OK with revenue data
+
+---
+
+// Test 6.7: Get Booking Analytics
+GET /admin/analytics/bookings
+Authorization: Bearer ADMIN_JWT_TOKEN
+
+// Expected Response: 200 OK with booking data
+
+---
+
+// Test 6.8: Assign Worker to Booking
+PUT /admin/bookings/BOOKING_ID_HERE/assign-worker
+Authorization: Bearer ADMIN_JWT_TOKEN
+Content-Type: application/json
+
+{
+  "workerId": "WORKER_USER_ID"
+}
+
+// Expected Response: 200 OK
+
+---
+
+// ============================================
+// ERROR RESPONSES
+// ============================================
+
+// 400 Bad Request - Missing required fields
+{
+  "success": false,
+  "message": "Please provide all required fields"
+}
+
+// 401 Unauthorized - Invalid or missing token
+{
+  "success": false,
+  "message": "Not authorized - please login"
+}
+
+// 403 Forbidden - Insufficient permissions
+{
+  "success": false,
+  "message": "Access denied - Admin only"
+}
+
+// 404 Not Found - Resource doesn't exist
+{
+  "success": false,
+  "message": "Resource not found"
+}
+
+// 500 Internal Server Error
+{
+  "success": false,
+  "message": "Internal server error"
+}
+
+---
+
+// ============================================
+// QUICK REFERENCE
+// ============================================
+
+/**
+ * User Roles:
+ * - user: Regular customer
+ * - worker: Service provider
+ * - admin: System administrator
+ * 
+ * Booking Status:
+ * - pending: Awaiting confirmation
+ * - confirmed: Confirmed by admin
+ * - in-progress: Currently being processed
+ * - completed: Task completed
+ * - cancelled: Booking cancelled
+ * 
+ * Payment Status:
+ * - pending: Payment initiated
+ * - captured: Payment successful
+ * - failed: Payment failed
+ * - refunded: Refund processed
+ * 
+ * Task Status:
+ * - pending: Not started
+ * - in-progress: Currently working
+ * - completed: Task finished
+ * - on-hold: Paused
+ * 
+ * Service Categories:
+ * - document: Document creation services
+ * - typing: Typing services
+ * - printing: Printing services
+ * - scanning: Scanning services
+ * - website: Website development
+ * - forms: Form filling services
+ * - other: Other services
+ */
