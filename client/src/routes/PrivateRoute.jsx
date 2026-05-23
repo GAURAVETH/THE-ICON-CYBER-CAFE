@@ -1,4 +1,4 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 const PrivateRoute = ({
@@ -11,6 +11,7 @@ const PrivateRoute = ({
         isAuthLoading
     } = useAuth();
     const token = localStorage.getItem("token");
+    const location = useLocation();
 
     if (isAuthLoading) {
         return (
@@ -22,6 +23,11 @@ const PrivateRoute = ({
 
     if (!token || !user) {
         return <Navigate to="/login" replace />;
+    }
+
+    // Force user to profile if they don't have a phone number. App.jsx will handle the warning/logout strikes.
+    if (!user.phone && location.pathname !== "/profile") {
+        return <Navigate to="/profile" replace />;
     }
 
     if (adminOnly && user.role !== "admin") {

@@ -40,6 +40,7 @@ const normalizeUser = (value) => {
         email: value.email || "",
         role: value.role || "user",
         avatar: value.avatar || null,
+        countryCode: value.countryCode || "+91",
         phone: value.phone || ""
     };
 };

@@ -2,15 +2,17 @@ import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import API from "../services/api";
 import { motion } from "framer-motion";
+import { countryCodes } from "../utils/countryCodes";
 
 const Profile = () => {
     const { user, login } = useAuth(); // use login to update context user data
-    const [isEditing, setIsEditing] = useState(false);
+    const [isEditing, setIsEditing] = useState(!user?.phone);
     const [message, setMessage] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [formData, setFormData] = useState({
         name: user?.name || "",
         email: user?.email || "",
+        countryCode: user?.countryCode || "+91",
         phone: user?.phone || "",
         address: user?.address || ""
     });
@@ -93,7 +95,7 @@ const Profile = () => {
                                     </div>
                                     <div className="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
                                         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Phone</p>
-                                        <p className="font-semibold text-gray-900 dark:text-white">{user?.phone || "Not provided"}</p>
+                                        <p className="font-semibold text-gray-900 dark:text-white">{user?.phone ? `${user.countryCode || '+91'} ${user.phone}` : "Not provided"}</p>
                                     </div>
                                     <div className="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700 md:col-span-2">
                                         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Address</p>
@@ -138,13 +140,28 @@ const Profile = () => {
 
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Phone Number</label>
-                                    <input
-                                        type="tel"
-                                        name="phone"
-                                        value={formData.phone}
-                                        onChange={handleChange}
-                                        className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white px-4 py-3 rounded-xl outline-none focus:ring-2 focus:ring-orange-500/40"
-                                    />
+                                    <div className="flex">
+                                        <select
+                                            name="countryCode"
+                                            value={formData.countryCode}
+                                            onChange={handleChange}
+                                            className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 border-r-0 text-[#0b132b] dark:text-white px-3 py-3 rounded-l-xl outline-none focus:ring-2 focus:ring-orange-500/40 transition-all appearance-none"
+                                        >
+                                            {countryCodes.map((country) => (
+                                                <option key={country.name} value={country.code}>
+                                                    {country.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <input
+                                            type="tel"
+                                            name="phone"
+                                            value={formData.phone}
+                                            onChange={handleChange}
+                                            required
+                                            className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white px-4 py-3 rounded-r-xl outline-none focus:ring-2 focus:ring-orange-500/40"
+                                        />
+                                    </div>
                                 </div>
 
                                 <div>
@@ -166,13 +183,15 @@ const Profile = () => {
                                     >
                                         {isLoading ? "Saving..." : "Save Changes"}
                                     </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsEditing(false)}
-                                        className="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-bold py-3 rounded-xl transition-colors"
-                                    >
-                                        Cancel
-                                    </button>
+                                    {user?.phone && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsEditing(false)}
+                                            className="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-bold py-3 rounded-xl transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                    )}
                                 </div>
                             </form>
                         )}

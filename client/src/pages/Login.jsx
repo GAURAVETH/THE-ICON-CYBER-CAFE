@@ -54,7 +54,12 @@ const Login = () => {
 
                 // The backend responds with your app's user object and JWT
                 const nextUser = login(data.data);
-                navigate(getDashboardPath(nextUser), { replace: true });
+                
+                if (!nextUser.phone) {
+                    navigate("/profile", { replace: true });
+                } else {
+                    navigate(getDashboardPath(nextUser), { replace: true });
+                }
 
             } catch (error) {
                 console.error("Backend Auth Error:", error);
@@ -111,12 +116,12 @@ const Login = () => {
                     <form onSubmit={handleSubmit} className="space-y-5">
                         <div>
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 dark:text-gray-300 mb-1.5">
-                                Email Address
+                                Email or Phone Number
                             </label>
                             <input
-                                type="email"
+                                type="text"
                                 name="email"
-                                placeholder="name@example.com"
+                                placeholder="name@example.com or 1234567890"
                                 required
                                 value={form.email}
                                 onChange={handleChange}

@@ -8,10 +8,10 @@ import generateToken from "../utils/generateToken.js";
 // @access  Public
 export const registerUser = async (req, res) => {
     try {
-        const { name, email, password, confirmPassword } = req.body;
+        const { name, email, phone, countryCode, password, confirmPassword } = req.body;
 
         // Validation
-        if (!name || !email || !password || !confirmPassword) {
+        if (!name || !email || !phone || !password || !confirmPassword) {
             return res.status(400).json({
                 success: false,
                 message: "All fields are required"
@@ -33,12 +33,19 @@ export const registerUser = async (req, res) => {
         }
 
         // Check if user already exists
-        const userExists = await User.findOne({ email });
-
-        if (userExists) {
+        const emailExists = await User.findOne({ email });
+        if (emailExists) {
             return res.status(400).json({
                 success: false,
                 message: "User already exists with this email"
+            });
+        }
+
+        const phoneExists = await User.findOne({ phone, countryCode: countryCode || "+91" });
+        if (phoneExists) {
+            return res.status(400).json({
+                success: false,
+                message: "User already exists with this phone number"
             });
         }
 
@@ -46,6 +53,8 @@ export const registerUser = async (req, res) => {
         const user = await User.create({
             name: name.trim(),
             email: email.toLowerCase(),
+            phone,
+            countryCode: countryCode || "+91",
             password,
             role: "user"
         });
@@ -60,7 +69,9 @@ export const registerUser = async (req, res) => {
                     _id: user._id,
                     name: user.name,
                     email: user.email,
-                    role: user.role
+                    role: user.role,
+                    phone: user.phone,
+                    countryCode: user.countryCode
                 },
                 token
             }
@@ -81,16 +92,19 @@ export const loginUser = async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        // Validation
+        // Validation - Note: 'email' field here acts as the identifier (email or phone)
         if (!email || !password) {
             return res.status(400).json({
                 success: false,
-                message: "Please provide email and password"
+                message: "Please provide email/phone and password"
             });
         }
 
-        // Check user exists and get password
-        const user = await User.findOne({ email: email.toLowerCase() }).select("+password");
+        // Check user exists by email OR phone
+        const identifier = email.toLowerCase();
+        const user = await User.findOne({
+            $or: [{ email: identifier }, { phone: identifier }]
+        }).select("+password");
 
         if (!user) {
             return res.status(401).json({
@@ -128,7 +142,8 @@ export const loginUser = async (req, res) => {
                     name: user.name,
                     email: user.email,
                     role: user.role,
-                    avatar: user.avatar
+                    avatar: user.avatar,
+                    phone: user.phone
                 },
                 token
             }
@@ -197,7 +212,8 @@ export const googleAuth = async (req, res) => {
                     name: user.name,
                     email: user.email,
                     role: user.role,
-                    avatar: user.avatar
+                    avatar: user.avatar,
+                    phone: user.phone
                 },
                 token: jwtToken
             }
@@ -252,13 +268,14 @@ export const logoutUser = async (req, res) => {
 // @access  Private
 export const updateProfile = async (req, res) => {
     try {
-        const { name, phone, address, email, avatar } = req.body;
+        const { name, phone, countryCode, address, email, avatar } = req.body;
 
         const user = await User.findByIdAndUpdate(
             req.user.id,
             {
                 name,
                 phone,
+                countryCode,
                 address,
                 email,
                 avatar

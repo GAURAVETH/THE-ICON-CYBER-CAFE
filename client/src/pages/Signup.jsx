@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import API from "../services/api";
 import { motion } from "framer-motion";
 import { useGoogleLogin } from "@react-oauth/google";
+import { countryCodes } from "../utils/countryCodes";
 
 const Signup = () => {
     const navigate = useNavigate();
@@ -12,6 +13,8 @@ const Signup = () => {
     const [form, setForm] = useState({
         name: "",
         email: "",
+        countryCode: "+91",
+        phone: "",
         password: "",
         confirmPassword: "",
     });
@@ -59,7 +62,12 @@ const Signup = () => {
 
                 // Log them in immediately and bypass the login screen
                 const nextUser = login(data.data);
-                navigate(getDashboardPath(nextUser), { replace: true });
+                
+                if (!nextUser.phone) {
+                    navigate("/profile", { replace: true });
+                } else {
+                    navigate(getDashboardPath(nextUser), { replace: true });
+                }
 
             } catch (error) {
                 console.error("Backend Auth Error:", error);
@@ -146,6 +154,35 @@ const Signup = () => {
                                 onChange={handleChange}
                                 className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-[#0b132b] dark:text-white px-4 py-3.5 rounded-xl outline-none focus:bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
                             />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                                Phone Number
+                            </label>
+                            <div className="flex">
+                                <select
+                                    name="countryCode"
+                                    value={form.countryCode}
+                                    onChange={handleChange}
+                                    className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 border-r-0 text-[#0b132b] dark:text-white px-3 py-3.5 rounded-l-xl outline-none focus:bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all appearance-none"
+                                >
+                                    {countryCodes.map((country) => (
+                                        <option key={country.name} value={country.code}>
+                                            {country.label}
+                                        </option>
+                                    ))}
+                                </select>
+                                <input
+                                    type="tel"
+                                    name="phone"
+                                    placeholder="1234567890"
+                                    required
+                                    value={form.phone}
+                                    onChange={handleChange}
+                                    className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-[#0b132b] dark:text-white px-4 py-3.5 rounded-r-xl outline-none focus:bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+                                />
+                            </div>
                         </div>
 
                         <div>
