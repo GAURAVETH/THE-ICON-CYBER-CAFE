@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const API = axios.create({
-    baseURL: import.meta.env.VITE_BACKEND_URL,
+    baseURL: "https://the-icon-cyber-cafe.onrender.com/api",
 });
 
 API.interceptors.request.use((req) => {

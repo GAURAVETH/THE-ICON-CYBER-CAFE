@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => {
     server: {
       proxy: {
         "/api": {
-          target: env.VITE_BACKEND_URL,
+          target: "https://the-icon-cyber-cafe.onrender.com/api",
           changeOrigin: true,
           secure: false,
         },
