@@ -16,6 +16,11 @@ const serviceSchema = new mongoose.Schema(
             minlength: [10, "Description must be at least 10 characters"]
         },
 
+        requiredDocuments: {
+            type: String,
+            default: ""
+        },
+
         price: {
             type: Number,
             required: [true, "Please provide a price"],
@@ -38,6 +43,18 @@ const serviceSchema = new mongoose.Schema(
             type: String,
             default: null
         },
+
+        documents: [
+            {
+                filename: String,
+                url: String,
+                mimetype: String,
+                uploadedAt: {
+                    type: Date,
+                    default: Date.now
+                }
+            }
+        ],
 
         category: {
             type: String,
@@ -85,7 +102,7 @@ const serviceSchema = new mongoose.Schema(
             isPerItemPricing: { type: Boolean, default: false },
             itemPrice: { type: Number, default: 0 },
             requiresPersonalDetails: { type: Boolean, default: true },
-            documentTypes: [{ type: String }], 
+            documentTypes: [{ type: String }],
             requiresPickupTime: { type: Boolean, default: false }
         },
 

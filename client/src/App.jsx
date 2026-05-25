@@ -19,6 +19,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import Services from "./pages/Services";
 import Booking from "./pages/Booking";
 import Notifications from "./pages/Notifications";
+import Blogs from "./pages/Blogs";
 import Profile from "./pages/Profile";
 
 import PrivateRoute
@@ -62,8 +63,8 @@ const App = () => {
   // Reset escape attempts if they provide a phone number
   useEffect(() => {
     if (user && user.phone) {
-        escapeAttemptsRef.current = 0;
-        setShowPopup(false);
+      escapeAttemptsRef.current = 0;
+      setShowPopup(false);
     }
   }, [user?.phone]);
 
@@ -79,10 +80,10 @@ const App = () => {
             className="fixed top-20 left-1/2 transform -translate-x-1/2 z-[100] bg-red-600 text-white px-8 py-5 rounded-2xl shadow-2xl flex flex-col items-center gap-2 max-w-md w-[90%] text-center border-4 border-red-700"
           >
             <div className="flex items-center gap-3">
-                <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-                <div className="font-black text-xl">Action Required</div>
+              <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <div className="font-black text-xl">Action Required</div>
             </div>
             <p className="text-sm font-semibold">{popupMessage}</p>
           </motion.div>
@@ -143,11 +144,12 @@ const App = () => {
 
           <Route
             path="/notifications"
-            element={
-              <PrivateRoute>
-                <Notifications />
-              </PrivateRoute>
-            }
+            element={<Notifications />}
+          />
+
+          <Route
+            path="/blogs"
+            element={<Blogs />}
           />
 
           <Route

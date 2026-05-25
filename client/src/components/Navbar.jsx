@@ -42,6 +42,8 @@ const Navbar = () => {
     const navLinks = [
         { name: "HOME", path: "/" },
         { name: "SERVICES", path: "/services" },
+        { name: "LATEST JOBS", path: "/notifications" },
+        { name: "BLOGS", path: "/blogs" },
     ];
 
     if (user) {
@@ -109,24 +111,24 @@ const Navbar = () => {
                         >
                             {theme === 'light' ? (
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-5">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
                                 </svg>
                             ) : (
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-5">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
                                 </svg>
                             )}
                         </button>
 
                         {user ? (
                             <div className="relative" ref={profileMenuRef}>
-                                <button 
+                                <button
                                     onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
                                     className="flex items-center gap-2 focus:outline-none"
                                 >
-                                    <img 
-                                        src={user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=0b132b&color=fff`} 
-                                        alt="Profile" 
+                                    <img
+                                        src={user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=0b132b&color=fff`}
+                                        alt="Profile"
                                         className="w-9 h-9 rounded-full border-2 border-gray-200 dark:border-gray-700 object-cover"
                                     />
                                 </button>
@@ -143,8 +145,8 @@ const Navbar = () => {
                                                 <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{user.name}</p>
                                                 <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user.email}</p>
                                             </div>
-                                            <Link 
-                                                to="/profile" 
+                                            <Link
+                                                to="/profile"
                                                 onClick={() => setIsProfileMenuOpen(false)}
                                                 className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                                             >
@@ -181,11 +183,11 @@ const Navbar = () => {
                         >
                             {theme === 'light' ? (
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-5">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
                                 </svg>
                             ) : (
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-5">
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
                                 </svg>
                             )}
                         </button>
@@ -247,7 +249,7 @@ const Navbar = () => {
                                         </Link>
                                     </motion.div>
                                 ))}
-                                
+
                                 {user && (
                                     <motion.div
                                         initial={{ x: -20, opacity: 0 }}

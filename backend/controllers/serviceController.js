@@ -14,7 +14,7 @@ export const getAllServices = async (req, res) => {
         }
 
         if (isFeatured !== undefined) {
-            query.isFeatured = isFeatured === 'true';
+            query.isFeatured = isFeatured === "true";
         }
 
         if (search) {
@@ -25,12 +25,12 @@ export const getAllServices = async (req, res) => {
         }
 
         const skip = (page - 1) * limit;
-        
+
         let sortQuery = { createdAt: -1 };
-        if (sort === '-currentBookings') {
+        if (sort === "-currentBookings") {
             sortQuery = { currentBookings: -1, createdAt: -1 };
         } else if (sort) {
-             sortQuery = sort;
+            sortQuery = sort;
         }
 
         const services = await Service.find(query)
@@ -91,6 +91,7 @@ export const createService = async (req, res) => {
         const {
             title,
             description,
+            requiredDocuments,
             price,
             category,
             duration,
@@ -99,12 +100,12 @@ export const createService = async (req, res) => {
             image,
             formFields,
             availability = true,
-            isFeatured = false
+            isFeatured = false,
+            documents
         } = req.body;
 
         const numericPrice = Number(price);
 
-        // Validation
         if (!title || !description || price === undefined || price === "" || Number.isNaN(numericPrice) || !category) {
             return res.status(400).json({
                 success: false,
@@ -113,18 +114,27 @@ export const createService = async (req, res) => {
         }
 
         let parsedDuration = duration;
-        if (typeof duration === 'string') {
-            try { parsedDuration = JSON.parse(duration); } catch (e) { }
+        if (typeof duration === "string") {
+            try {
+                parsedDuration = JSON.parse(duration);
+            } catch {
+                parsedDuration = { value: 1, unit: "hours" };
+            }
         }
 
         let parsedFormFields = formFields;
-        if (typeof formFields === 'string') {
-            try { parsedFormFields = JSON.parse(formFields); } catch (e) { }
+        if (typeof formFields === "string") {
+            try {
+                parsedFormFields = JSON.parse(formFields);
+            } catch {
+                parsedFormFields = {};
+            }
         }
 
         const service = await Service.create({
             title: title.trim(),
             description: description.trim(),
+            requiredDocuments: requiredDocuments || "",
             price: numericPrice,
             category,
             duration: parsedDuration,
@@ -133,7 +143,8 @@ export const createService = async (req, res) => {
             emiOptions,
             availability,
             isFeatured,
-            image: image || null
+            image: image || null,
+            documents: Array.isArray(documents) ? documents : []
         });
 
         res.status(201).json({
@@ -166,6 +177,7 @@ export const updateService = async (req, res) => {
         const {
             title,
             description,
+            requiredDocuments,
             price,
             category,
             duration,
@@ -174,13 +186,16 @@ export const updateService = async (req, res) => {
             isActive,
             availability,
             image,
-            isFeatured
+            isFeatured,
+            documents,
+            formFields
         } = req.body;
 
         const updates = {};
 
         if (title !== undefined) updates.title = title.trim();
         if (description !== undefined) updates.description = description.trim();
+        if (requiredDocuments !== undefined) updates.requiredDocuments = requiredDocuments;
         if (price !== undefined) {
             const numericPrice = Number(price);
 
@@ -201,6 +216,8 @@ export const updateService = async (req, res) => {
         if (availability !== undefined) updates.availability = availability;
         if (image !== undefined) updates.image = image;
         if (isFeatured !== undefined) updates.isFeatured = isFeatured;
+        if (documents !== undefined) updates.documents = Array.isArray(documents) ? documents : [];
+        if (formFields !== undefined) updates.formFields = formFields;
 
         service = await Service.findByIdAndUpdate(
             req.params.id,

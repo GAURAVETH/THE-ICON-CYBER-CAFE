@@ -1,14 +1,16 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import API from "../services/api";
 import { motion } from "framer-motion";
 import { useGoogleLogin } from "@react-oauth/google";
+import $ from "jquery";
 import { countryCodes } from "../utils/countryCodes";
 
 const Signup = () => {
     const navigate = useNavigate();
     const { login } = useAuth();
+    const formRef = useRef(null);
 
     const [form, setForm] = useState({
         name: "",
@@ -26,14 +28,108 @@ const Signup = () => {
     const getDashboardPath = (nextUser) =>
         nextUser?.role === "admin" ? "/admin" : "/dashboard";
 
+    const clearFieldErrors = () => {
+        if (!formRef.current) {
+            return;
+        }
+
+        const $form = $(formRef.current);
+        $form.find(".signup-field").removeClass("border-red-500 ring-2 ring-red-500/50");
+        $form.find(".signup-field-error").remove();
+    };
+
+    const showFieldError = (fieldName, message) => {
+        if (!formRef.current) {
+            return;
+        }
+
+        const $field = $(formRef.current).find(`[name="${fieldName}"]`);
+
+        if (!$field.length) {
+            return;
+        }
+
+        $field.addClass("border-red-500 ring-2 ring-red-500/50");
+
+        if ($field.next(".signup-field-error").length === 0) {
+            $field.after(`<p class="signup-field-error mt-1 text-xs font-bold text-red-600">${message}</p>`);
+        }
+    };
+
+    useEffect(() => {
+        const $form = $(formRef.current);
+
+        if (!$form.length) {
+            return undefined;
+        }
+
+        const handleInput = () => {
+            setErrorMsg("");
+            clearFieldErrors();
+        };
+
+        $form.on("input", "input, select", handleInput);
+
+        return () => {
+            $form.off("input", handleInput);
+        };
+    }, []);
+
     // Handle standard Email/Password Registration
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setIsLoading(true);
+        clearFieldErrors();
         setErrorMsg("");
 
+        const $form = $(formRef.current);
+        const values = {
+            name: $.trim($form.find('input[name="name"]').val()),
+            email: $.trim($form.find('input[name="email"]').val()),
+            phone: $.trim($form.find('input[name="phone"]').val()),
+            password: $form.find('input[name="password"]').val(),
+            confirmPassword: $form.find('input[name="confirmPassword"]').val(),
+            countryCode: $form.find('select[name="countryCode"]').val(),
+        };
+
+        let hasValidationErrors = false;
+
+        if (!values.name || values.name.length < 2) {
+            showFieldError("name", "Please enter your full name.");
+            hasValidationErrors = true;
+        }
+
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) {
+            showFieldError("email", "Enter a valid email address.");
+            hasValidationErrors = true;
+        }
+
+        if (!/^[0-9]{7,15}$/.test(values.phone)) {
+            showFieldError("phone", "Enter a valid phone number.");
+            hasValidationErrors = true;
+        }
+
+        if (!values.password || values.password.length < 6) {
+            showFieldError("password", "Password must be at least 6 characters.");
+            hasValidationErrors = true;
+        }
+
+        if (values.password !== values.confirmPassword) {
+            showFieldError("confirmPassword", "Passwords do not match.");
+            hasValidationErrors = true;
+        }
+
+        if (hasValidationErrors) {
+            setErrorMsg("Please review the highlighted fields and try again.");
+            return;
+        }
+
+        setIsLoading(true);
+
         try {
-            const { data } = await API.post("/auth/register", form);
+            const { data } = await API.post("/auth/register", {
+                ...values,
+                phone: `${values.countryCode}${values.phone}`,
+            });
             const nextUser = login(data.data);
             navigate(getDashboardPath(nextUser), { replace: true });
 
@@ -54,15 +150,12 @@ const Signup = () => {
             setErrorMsg("");
 
             try {
-                // Send the Google token to your backend
-                // Your backend will create a new account for them and send back a JWT
                 const { data } = await API.post("/auth/google", {
                     token: tokenResponse.access_token
                 });
 
-                // Log them in immediately and bypass the login screen
                 const nextUser = login(data.data);
-                
+
                 if (!nextUser.phone) {
                     navigate("/profile", { replace: true });
                 } else {
@@ -92,7 +185,6 @@ const Signup = () => {
 
     return (
         <div className="min-h-screen flex justify-center items-center bg-[#fafbfc] dark:bg-gray-900 px-4 relative overflow-hidden py-10">
-            {/* Background decorative elements */}
             <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
                 <div className="absolute top-[-10%] right-[-10%] w-96 h-96 bg-blue-500/5 rounded-full blur-3xl"></div>
                 <div className="absolute bottom-[-10%] left-[-10%] w-96 h-96 bg-orange-500/5 rounded-full blur-3xl"></div>
@@ -105,27 +197,23 @@ const Signup = () => {
                 className="w-full max-w-md z-10"
             >
                 <div className="bg-white dark:bg-gray-800 p-8 md:p-10 rounded-[2rem] shadow-2xl shadow-gray-200/50 border border-gray-100 dark:border-gray-700">
-
-                    {/* Header Section */}
                     <div className="text-center mb-8">
                         <div className="bg-[#0b132b] w-12 h-12 rounded-xl mx-auto flex justify-center items-center mb-4">
                             <div className="w-5 h-5 border-2 border-orange-500 transform rotate-45"></div>
                         </div>
                         <h2 className="text-3xl font-black text-[#0b132b] dark:text-white">Create Account</h2>
-                        <p className="text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-2 text-sm">
+                        <p className="text-gray-500 dark:text-gray-400 mt-2 text-sm">
                             Join Icon Cyber Cafe to book and track services.
                         </p>
                     </div>
 
-                    {/* Error Message Display */}
                     {errorMsg && (
                         <div className="mb-6 p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl text-center font-medium">
                             {errorMsg}
                         </div>
                     )}
 
-                    {/* Registration Form */}
-                    <form onSubmit={handleSubmit} className="space-y-4">
+                    <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
                         <div>
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">
                                 Full Name
@@ -134,10 +222,9 @@ const Signup = () => {
                                 type="text"
                                 name="name"
                                 placeholder="John Doe"
-                                required
                                 value={form.name}
                                 onChange={handleChange}
-                                className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-[#0b132b] dark:text-white px-4 py-3.5 rounded-xl outline-none focus:bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+                                className="signup-field w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-[#0b132b] dark:text-white px-4 py-3.5 rounded-xl outline-none focus:bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
                             />
                         </div>
 
@@ -149,10 +236,9 @@ const Signup = () => {
                                 type="email"
                                 name="email"
                                 placeholder="name@example.com"
-                                required
                                 value={form.email}
                                 onChange={handleChange}
-                                className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-[#0b132b] dark:text-white px-4 py-3.5 rounded-xl outline-none focus:bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+                                className="signup-field w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-[#0b132b] dark:text-white px-4 py-3.5 rounded-xl outline-none focus:bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
                             />
                         </div>
 
@@ -165,7 +251,7 @@ const Signup = () => {
                                     name="countryCode"
                                     value={form.countryCode}
                                     onChange={handleChange}
-                                    className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 border-r-0 text-[#0b132b] dark:text-white px-3 py-3.5 rounded-l-xl outline-none focus:bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all appearance-none"
+                                    className="signup-field bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 border-r-0 text-[#0b132b] dark:text-white px-3 py-3.5 rounded-l-xl outline-none focus:bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all appearance-none"
                                 >
                                     {countryCodes.map((country) => (
                                         <option key={country.name} value={country.code}>
@@ -177,10 +263,9 @@ const Signup = () => {
                                     type="tel"
                                     name="phone"
                                     placeholder="1234567890"
-                                    required
                                     value={form.phone}
                                     onChange={handleChange}
-                                    className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-[#0b132b] dark:text-white px-4 py-3.5 rounded-r-xl outline-none focus:bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+                                    className="signup-field w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-[#0b132b] dark:text-white px-4 py-3.5 rounded-r-xl outline-none focus:bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
                                 />
                             </div>
                         </div>
@@ -193,10 +278,9 @@ const Signup = () => {
                                 type="password"
                                 name="password"
                                 placeholder="********"
-                                required
                                 value={form.password}
                                 onChange={handleChange}
-                                className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-[#0b132b] dark:text-white px-4 py-3.5 rounded-xl outline-none focus:bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+                                className="signup-field w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-[#0b132b] dark:text-white px-4 py-3.5 rounded-xl outline-none focus:bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
                             />
                         </div>
 
@@ -208,10 +292,9 @@ const Signup = () => {
                                 type="password"
                                 name="confirmPassword"
                                 placeholder="********"
-                                required
                                 value={form.confirmPassword}
                                 onChange={handleChange}
-                                className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-[#0b132b] dark:text-white px-4 py-3.5 rounded-xl outline-none focus:bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+                                className="signup-field w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-[#0b132b] dark:text-white px-4 py-3.5 rounded-xl outline-none focus:bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
                             />
                         </div>
 
@@ -219,8 +302,7 @@ const Signup = () => {
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
                             disabled={isLoading || isGoogleLoading}
-                            className={`w-full mt-4 bg-[#0b132b] hover:bg-gray-800 text-white font-bold py-4 px-8 rounded-xl shadow-lg shadow-gray-900/20 transition-all flex justify-center items-center gap-2 ${isLoading || isGoogleLoading ? "opacity-70 cursor-not-allowed" : ""
-                                }`}
+                            className={`w-full mt-4 bg-[#0b132b] hover:bg-gray-800 text-white font-bold py-4 px-8 rounded-xl shadow-lg shadow-gray-900/20 transition-all flex justify-center items-center gap-2 ${isLoading || isGoogleLoading ? "opacity-70 cursor-not-allowed" : ""}`}
                         >
                             {isLoading ? (
                                 <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
@@ -230,22 +312,19 @@ const Signup = () => {
                         </motion.button>
                     </form>
 
-                    {/* Divider */}
                     <div className="flex items-center my-6">
                         <div className="flex-grow border-t border-gray-200 dark:border-gray-700"></div>
                         <span className="flex-shrink-0 mx-4 text-gray-400 dark:text-gray-500 text-sm font-medium">OR</span>
                         <div className="flex-grow border-t border-gray-200 dark:border-gray-700"></div>
                     </div>
 
-                    {/* Google Signup Button */}
                     <motion.button
                         type="button"
                         onClick={() => signupWithGoogle()}
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                         disabled={isLoading || isGoogleLoading}
-                        className={`w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:bg-gray-900 hover:border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-bold py-3.5 px-8 rounded-xl shadow-sm transition-all flex justify-center items-center gap-3 ${isLoading || isGoogleLoading ? "opacity-70 cursor-not-allowed" : ""
-                            }`}
+                        className={`w-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:bg-gray-900 hover:border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-bold py-3.5 px-8 rounded-xl shadow-sm transition-all flex justify-center items-center gap-3 ${isLoading || isGoogleLoading ? "opacity-70 cursor-not-allowed" : ""}`}
                     >
                         {isGoogleLoading ? (
                             <svg className="animate-spin h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
@@ -261,11 +340,9 @@ const Signup = () => {
                             </>
                         )}
                     </motion.button>
-
                 </div>
 
-                {/* Footer Link */}
-                <p className="text-center text-sm text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-6">
+                <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-6">
                     Already have an account?{" "}
                     <Link to="/login" className="text-[#0b132b] dark:text-white font-bold hover:underline">
                         Log in here

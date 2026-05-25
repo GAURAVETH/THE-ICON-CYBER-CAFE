@@ -18,17 +18,15 @@ export const createRazorpayOrder = async (req, res) => {
             });
         }
 
-        // Calculate amount
         let amount = booking.amount;
         if (emiMonths) {
-            amount = (booking.amount / emiMonths) * 100; // First installment
+            amount = (booking.amount / emiMonths) * 100;
         }
 
-        // Create Razorpay order
         const razorpayResponse = await axios.post(
             "https://api.razorpay.com/v1/orders",
             {
-                amount: Math.round(amount * 100), // Amount in paise
+                amount: Math.round(amount * 100),
                 currency: "INR",
                 receipt: bookingId.toString(),
                 payment_capture: 1
@@ -59,6 +57,60 @@ export const createRazorpayOrder = async (req, res) => {
     }
 };
 
+export const createAdvancePayment = async (req, res) => {
+    try {
+        const { bookingId, paymentMethod = "wallet" } = req.body;
+
+        if (!bookingId) {
+            return res.status(400).json({
+                success: false,
+                message: "Please provide a bookingId"
+            });
+        }
+
+        const booking = await Booking.findById(bookingId);
+
+        if (!booking) {
+            return res.status(404).json({
+                success: false,
+                message: "Booking not found"
+            });
+        }
+
+        const advanceAmount = Number((booking.amount * 0.5).toFixed(2));
+        const transactionId = `ADV-${booking._id}-${Date.now()}`;
+
+        const payment = await Payment.create({
+            user: req.user.id,
+            booking: booking._id,
+            amount: advanceAmount,
+            paymentMethod,
+            paymentGateway: "stripe",
+            transactionId,
+            status: "captured",
+            notes: "50% advance payment for service request"
+        });
+
+        booking.paymentStatus = "completed";
+        booking.paymentId = payment.transactionId;
+        booking.paymentMethod = paymentMethod;
+        booking.status = "pending";
+        await booking.save();
+
+        res.status(200).json({
+            success: true,
+            message: "Advance payment confirmed",
+            data: payment
+        });
+    } catch (error) {
+        console.error("Advance payment error:", error.message);
+        res.status(500).json({
+            success: false,
+            message: error.message || "Failed to process advance payment"
+        });
+    }
+};
+
 // @desc    Verify payment
 // @route   POST /api/payments/verify
 // @access  Private
@@ -66,7 +118,6 @@ export const verifyPayment = async (req, res) => {
     try {
         const { bookingId, orderId, paymentId, signature, paymentMethod, emiMonths } = req.body;
 
-        // Verify Razorpay signature
         const crypto = await import("crypto");
         const expectedSignature = crypto
             .default
@@ -90,7 +141,6 @@ export const verifyPayment = async (req, res) => {
             });
         }
 
-        // Create payment record
         const payment = await Payment.create({
             user: req.user.id,
             booking: bookingId,
@@ -101,13 +151,12 @@ export const verifyPayment = async (req, res) => {
             orderId,
             status: "captured",
             emiDetails: {
-                enabled: emiMonths ? true : false,
+                enabled: Boolean(emiMonths),
                 months: emiMonths || null,
                 monthlyAmount: emiMonths ? booking.amount / emiMonths : null
             }
         });
 
-        // Update booking payment status
         booking.paymentStatus = "completed";
         booking.paymentId = paymentId;
         booking.paymentMethod = paymentMethod;
@@ -186,7 +235,6 @@ export const getPaymentById = async (req, res) => {
             });
         }
 
-        // Check permission
         if (payment.user.toString() !== req.user.id && req.user.role !== "admin") {
             return res.status(403).json({
                 success: false,
@@ -229,7 +277,6 @@ export const processRefund = async (req, res) => {
             });
         }
 
-        // Process refund with Razorpay
         const refundResponse = await axios.post(
             `https://api.razorpay.com/v1/payments/${payment.transactionId}/refund`,
             {
@@ -255,7 +302,6 @@ export const processRefund = async (req, res) => {
         };
         await payment.save();
 
-        // Update booking
         const booking = await Booking.findById(payment.booking);
         booking.paymentStatus = "refunded";
         await booking.save();

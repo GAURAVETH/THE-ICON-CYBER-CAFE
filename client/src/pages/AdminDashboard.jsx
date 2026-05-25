@@ -1,732 +1,768 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import API from "../services/api";
-import { motion } from "framer-motion";
 
 const emptyServiceForm = {
     title: "",
-    category: "document",
-    price: "",
-    durationValue: 1,
-    durationUnit: "hours",
-    maxBookings: 10,
-    image: "",
     description: "",
-    file: null,
-    isFeatured: false,
-    requiresDocuments: false,
-    requiresTravelDetails: false,
-    requiresFormName: false,
-    isPerItemPricing: false,
-    itemPrice: 0,
-    requiresPersonalDetails: true,
-    requiresPickupTime: false,
-    documentTypes: ""
+    price: "",
+    category: "Computer Repair",
+    durationValue: "1",
+    durationUnit: "hours",
+    requiredDocuments: "",
+    documents: []
 };
 
-const categories = [
-    "Document",
-    "Typing",
-    "Printing",
-    "Scanning",
-    "Website",
-    "Forms",
-    "Other"
-];
+const emptyBlogForm = {
+    title: "",
+    description: "",
+    image: ""
+};
 
-const statusOptions = ["pending", "in-progress", "done", "successful", "cancelled"];
+const emptyJobForm = {
+    title: "",
+    description: "",
+    requiredDocuments: "",
+    image: ""
+};
 
 const AdminDashboard = () => {
-    const [stats, setStats] = useState(null);
+    const [stats, setStats] = useState({
+        totalUsers: 0,
+        totalServices: 0,
+        totalBookings: 0,
+        pendingBookings: 0,
+        totalRevenue: 0
+    });
     const [services, setServices] = useState([]);
-    const [allBookings, setAllBookings] = useState([]);
+    const [bookings, setBookings] = useState([]);
+    const [blogs, setBlogs] = useState([]);
+    const [jobs, setJobs] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [message, setMessage] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [serviceForm, setServiceForm] = useState(emptyServiceForm);
-    const [isLoading, setIsLoading] = useState(true);
-    const [isCreating, setIsCreating] = useState(false);
-    const [error, setError] = useState(null);
-    const [serviceMessage, setServiceMessage] = useState("");
-    const [activeTab, setActiveTab] = useState("services");
-    const [updatingBookingId, setUpdatingBookingId] = useState(null);
-    const [updatingStatus, setUpdatingStatus] = useState({});
+    const [blogForm, setBlogForm] = useState(emptyBlogForm);
+    const [jobForm, setJobForm] = useState(emptyJobForm);
+    const [editingServiceId, setEditingServiceId] = useState(null);
+    const [editingBlogId, setEditingBlogId] = useState(null);
+    const [editingJobId, setEditingJobId] = useState(null);
+    const serviceInputRef = useRef(null);
+    const blogInputRef = useRef(null);
+    const jobInputRef = useRef(null);
+
+    const loadAdminData = async () => {
+        try {
+            const [dashboardResponse, servicesResponse, bookingsResponse, blogsResponse, jobsResponse] = await Promise.all([
+                API.get("/admin/dashboard"),
+                API.get("/services?limit=100"),
+                API.get("/bookings?limit=100"),
+                API.get("/blogs"),
+                API.get("/job-notifications")
+            ]);
+
+            const summary = dashboardResponse.data.data || {};
+            setStats({
+                totalUsers: summary.totalUsers || 0,
+                totalServices: summary.totalServices || servicesResponse.data.data?.length || 0,
+                totalBookings: summary.totalBookings || 0,
+                pendingBookings: summary.pendingBookings || 0,
+                totalRevenue: summary.totalRevenue || 0
+            });
+            setServices(servicesResponse.data.data || []);
+            setBookings(bookingsResponse.data.data || []);
+            setBlogs(blogsResponse.data.data || []);
+            setJobs(jobsResponse.data.data || []);
+        } catch (error) {
+            console.error("Failed to load admin dashboard", error);
+            setMessage("Unable to load dashboard data. Please try again.");
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        let isMounted = true;
-
-        const fetchAdminData = async () => {
-            try {
-                const [statsResponse, servicesResponse, bookingsResponse] = await Promise.all([
-                    API.get("/admin/dashboard"),
-                    API.get("/services?limit=100"),
-                    API.get("/bookings?limit=999")
-                ]);
-
-                if (isMounted) {
-                    setStats(statsResponse.data.data || statsResponse.data);
-                    setServices(servicesResponse.data.data || []);
-                    setAllBookings(bookingsResponse.data.data || []);
-                }
-            } catch (err) {
-                console.error("Failed to fetch admin data", err);
-
-                if (isMounted) {
-                    setError("Could not load admin dashboard data.");
-                }
-            } finally {
-                if (isMounted) {
-                    setIsLoading(false);
-                }
-            }
-        };
-
-        fetchAdminData();
-
-        return () => {
-            isMounted = false;
-        };
+        loadAdminData();
     }, []);
 
-    const handleFormChange = (event) => {
-        const { name, value, type, checked } = event.target;
-        setServiceForm((current) => ({
-            ...current,
-            [name]: type === 'checkbox' ? checked : value
+    const uploadDocuments = async (files) => {
+        if (!files || files.length === 0) {
+            return [];
+        }
+
+        const payload = new FormData();
+        files.forEach((file) => payload.append("files", file));
+
+        const { data } = await API.post("/upload", payload, {
+            headers: {
+                "Content-Type": "multipart/form-data"
+            }
+        });
+
+        return data.files.map((file) => ({
+            filename: file.filename,
+            url: file.url,
+            documentType: file.mimetype,
+            uploadedAt: new Date().toISOString()
         }));
     };
 
-    const handleFileChange = (event) => {
-        const file = event.target.files[0];
+    const resetServiceForm = () => {
+        setServiceForm(emptyServiceForm);
+        setEditingServiceId(null);
+
+        if (serviceInputRef.current) {
+            serviceInputRef.current.value = "";
+        }
+    };
+
+    const resetBlogForm = () => {
+        setBlogForm(emptyBlogForm);
+        setEditingBlogId(null);
+
+        if (blogInputRef.current) {
+            blogInputRef.current.value = "";
+        }
+    };
+
+    const resetJobForm = () => {
+        setJobForm(emptyJobForm);
+        setEditingJobId(null);
+
+        if (jobInputRef.current) {
+            jobInputRef.current.value = "";
+        }
+    };
+
+    const handleServiceFileChange = (event) => {
         setServiceForm((current) => ({
             ...current,
-            file: file || null
+            documents: Array.from(event.target.files || [])
+        }));
+    };
+
+    const handleBlogFileChange = (event) => {
+        setBlogForm((current) => ({
+            ...current,
+            image: event.target.files?.[0] || ""
+        }));
+    };
+
+    const handleJobFileChange = (event) => {
+        setJobForm((current) => ({
+            ...current,
+            image: event.target.files?.[0] || ""
         }));
     };
 
     const handleCreateService = async (event) => {
         event.preventDefault();
-        setIsCreating(true);
-        setServiceMessage("");
+
+        if (!serviceForm.title || !serviceForm.description || !serviceForm.price || !serviceForm.category) {
+            setMessage("Please fill in all required service fields.");
+            return;
+        }
 
         try {
-            let requestData;
-            let config = {};
+            setIsSubmitting(true);
+            setMessage("");
 
-            const formFieldsObj = {
-                requiresDocuments: serviceForm.requiresDocuments,
-                requiresTravelDetails: serviceForm.requiresTravelDetails,
-                requiresFormName: serviceForm.requiresFormName,
-                isPerItemPricing: serviceForm.isPerItemPricing,
-                itemPrice: Number(serviceForm.itemPrice) || 0,
-                requiresPersonalDetails: serviceForm.requiresPersonalDetails,
-                requiresPickupTime: serviceForm.requiresPickupTime,
-                documentTypes: serviceForm.documentTypes ? serviceForm.documentTypes.split(',').map(d => d.trim()).filter(Boolean) : []
-            };
+            const currentService = editingServiceId ? services.find((service) => service._id === editingServiceId) : null;
+            const documents = serviceForm.documents.length > 0
+                ? await uploadDocuments(serviceForm.documents)
+                : currentService?.documents || [];
 
-            // If a file is uploaded, we must send it as FormData
-            if (serviceForm.file) {
-                requestData = new FormData();
-                requestData.append("title", serviceForm.title.trim());
-                requestData.append("category", serviceForm.category.toLowerCase());
-                requestData.append("price", Number(serviceForm.price));
-
-                // Stringify the duration object so the backend can parse it
-                requestData.append("duration", JSON.stringify({
-                    value: Number(serviceForm.durationValue) || 1,
-                    unit: serviceForm.durationUnit
-                }));
-                requestData.append("formFields", JSON.stringify(formFieldsObj));
-
-                requestData.append("maxBookings", Number(serviceForm.maxBookings) || 10);
-                if (serviceForm.image.trim()) requestData.append("image", serviceForm.image.trim());
-                requestData.append("description", serviceForm.description.trim());
-
-                requestData.append("isFeatured", serviceForm.isFeatured);
-
-                // Append the actual file
-                requestData.append("document", serviceForm.file);
-
-                // Set headers for file upload
-                config.headers = { "Content-Type": "multipart/form-data" };
-            } else {
-                // If no file is attached, send standard JSON payload
-                requestData = {
-                    title: serviceForm.title.trim(),
-                    category: serviceForm.category.toLowerCase(),
+            if (editingServiceId) {
+                const { data } = await API.put(`/services/${editingServiceId}`, {
+                    title: serviceForm.title,
+                    description: serviceForm.description,
                     price: Number(serviceForm.price),
+                    category: serviceForm.category,
                     duration: {
-                        value: Number(serviceForm.durationValue) || 1,
+                        value: Number(serviceForm.durationValue || 1),
                         unit: serviceForm.durationUnit
                     },
-                    formFields: formFieldsObj,
-                    maxBookings: Number(serviceForm.maxBookings) || 10,
-                    isFeatured: serviceForm.isFeatured,
-                    image: serviceForm.image.trim() || null,
-                    description: serviceForm.description.trim()
-                };
+                    requiredDocuments: serviceForm.requiredDocuments,
+                    formFields: {
+                        requiresDocuments: Boolean(serviceForm.requiredDocuments)
+                    },
+                    availability: currentService?.availability ?? true,
+                    isFeatured: currentService?.isFeatured ?? true,
+                    documents
+                });
+
+                setServices((current) => current.map((service) => service._id === editingServiceId ? data.data : service));
+                setMessage("Service updated successfully.");
+            } else {
+                const { data } = await API.post("/services", {
+                    title: serviceForm.title,
+                    description: serviceForm.description,
+                    price: Number(serviceForm.price),
+                    category: serviceForm.category,
+                    duration: {
+                        value: Number(serviceForm.durationValue || 1),
+                        unit: serviceForm.durationUnit
+                    },
+                    requiredDocuments: serviceForm.requiredDocuments,
+                    formFields: {
+                        requiresDocuments: Boolean(serviceForm.requiredDocuments)
+                    },
+                    availability: true,
+                    isFeatured: true,
+                    documents
+                });
+
+                setServices((current) => [data.data, ...current]);
+                setMessage("Service created successfully.");
             }
 
-            const { data } = await API.post("/services", requestData, config);
-
-            setServices((current) => [data.data, ...current]);
-            setStats((current) => current
-                ? {
-                    ...current,
-                    totalServices: (current.totalServices || 0) + 1
-                }
-                : current
-            );
-
-            // Reset form
-            setServiceForm(emptyServiceForm);
-            // Clear the native file input visually
-            const fileInput = document.getElementById("document-upload");
-            if (fileInput) fileInput.value = "";
-
-            setServiceMessage("Service added successfully.");
-        } catch (err) {
-            console.error("Failed to create service", err);
-            setServiceMessage(err.response?.data?.message || "Could not create service.");
+            resetServiceForm();
+        } catch (error) {
+            console.error("Failed to save service", error);
+            setMessage(error.response?.data?.message || "Could not save service right now.");
         } finally {
-            setIsCreating(false);
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleCreateBlog = async (event) => {
+        event.preventDefault();
+
+        if (!blogForm.title || !blogForm.description) {
+            setMessage("Please provide a title and description for the blog.");
+            return;
+        }
+
+        try {
+            setIsSubmitting(true);
+            setMessage("");
+
+            const currentBlog = editingBlogId ? blogs.find((blog) => blog._id === editingBlogId) : null;
+            let imageUrl = blogForm.image;
+
+            if (blogForm.image && typeof blogForm.image !== "string") {
+                const uploaded = await uploadDocuments([blogForm.image]);
+                imageUrl = uploaded[0]?.url || "";
+            } else if (!blogForm.image && currentBlog) {
+                imageUrl = currentBlog.image || "";
+            }
+
+            if (editingBlogId) {
+                const { data } = await API.put(`/blogs/${editingBlogId}`, {
+                    title: blogForm.title,
+                    description: blogForm.description,
+                    image: imageUrl,
+                    isPublished: currentBlog?.isPublished ?? true
+                });
+
+                setBlogs((current) => current.map((blog) => blog._id === editingBlogId ? data.data : blog));
+                setMessage("Blog updated successfully.");
+            } else {
+                const { data } = await API.post("/blogs", {
+                    title: blogForm.title,
+                    description: blogForm.description,
+                    image: imageUrl,
+                    isPublished: true
+                });
+
+                setBlogs((current) => [data.data, ...current]);
+                setMessage("Blog published successfully.");
+            }
+
+            resetBlogForm();
+        } catch (error) {
+            console.error("Failed to save blog", error);
+            setMessage(error.response?.data?.message || "Could not save blog right now.");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleCreateJob = async (event) => {
+        event.preventDefault();
+
+        if (!jobForm.title || !jobForm.description) {
+            setMessage("Please provide a title and description for the job notification.");
+            return;
+        }
+
+        try {
+            setIsSubmitting(true);
+            setMessage("");
+
+            const currentJob = editingJobId ? jobs.find((job) => job._id === editingJobId) : null;
+            let imageUrl = jobForm.image;
+
+            if (jobForm.image && typeof jobForm.image !== "string") {
+                const uploaded = await uploadDocuments([jobForm.image]);
+                imageUrl = uploaded[0]?.url || "";
+            } else if (!jobForm.image && currentJob) {
+                imageUrl = currentJob.image || "";
+            }
+
+            if (editingJobId) {
+                const { data } = await API.put(`/job-notifications/${editingJobId}`, {
+                    title: jobForm.title,
+                    description: jobForm.description,
+                    requiredDocuments: jobForm.requiredDocuments,
+                    image: imageUrl,
+                    isActive: currentJob?.isActive ?? true
+                });
+
+                setJobs((current) => current.map((job) => job._id === editingJobId ? data.data : job));
+                setMessage("Job notification updated successfully.");
+            } else {
+                const { data } = await API.post("/job-notifications", {
+                    title: jobForm.title,
+                    description: jobForm.description,
+                    requiredDocuments: jobForm.requiredDocuments,
+                    image: imageUrl,
+                    isActive: true
+                });
+
+                setJobs((current) => [data.data, ...current]);
+                setMessage("Job notification created successfully.");
+            }
+
+            resetJobForm();
+        } catch (error) {
+            console.error("Failed to save job notification", error);
+            setMessage(error.response?.data?.message || "Could not save job notification right now.");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleBookingStatusUpdate = async (bookingId, status) => {
+        try {
+            const { data } = await API.put(`/bookings/${bookingId}/status`, { status });
+            setBookings((current) => current.map((booking) => booking._id === bookingId ? data.data : booking));
+            setMessage(`Booking status updated to ${status}.`);
+        } catch (error) {
+            console.error("Failed to update booking status", error);
+            setMessage(error.response?.data?.message || "Could not update booking status.");
+        }
+    };
+
+    const handleToggleService = async (serviceId, isActive) => {
+        try {
+            const { data } = await API.put(`/services/${serviceId}`, { isActive: !isActive });
+            setServices((current) => current.map((service) => service._id === serviceId ? data.data : service));
+            setMessage("Service availability updated.");
+        } catch (error) {
+            console.error("Failed to toggle service", error);
+            setMessage(error.response?.data?.message || "Could not update service right now.");
         }
     };
 
     const handleDeleteService = async (serviceId) => {
-        setServiceMessage("");
-
         try {
             await API.delete(`/services/${serviceId}`);
             setServices((current) => current.filter((service) => service._id !== serviceId));
-            setStats((current) => current
-                ? {
-                    ...current,
-                    totalServices: Math.max((current.totalServices || 1) - 1, 0)
-                }
-                : current
-            );
-            setServiceMessage("Service removed.");
-        } catch (err) {
-            console.error("Failed to delete service", err);
-            setServiceMessage(err.response?.data?.message || "Could not delete service.");
+            setMessage("Service deleted successfully.");
+        } catch (error) {
+            console.error("Failed to delete service", error);
+            setMessage(error.response?.data?.message || "Could not delete service right now.");
         }
     };
 
-    const handleUpdateBookingStatus = async (bookingId, newStatus) => {
-        setUpdatingBookingId(bookingId);
+    const handleEditService = (service) => {
+        setEditingServiceId(service._id);
+        setServiceForm({
+            title: service.title || "",
+            description: service.description || "",
+            price: String(service.price || ""),
+            category: service.category || "Computer Repair",
+            durationValue: String(service.duration?.value || 1),
+            durationUnit: service.duration?.unit || "hours",
+            requiredDocuments: service.requiredDocuments || "",
+            documents: []
+        });
+    };
+
+    const handleDeleteBlog = async (blogId) => {
         try {
-            await API.put(`/bookings/${bookingId}/status`, { status: newStatus });
-            setAllBookings((current) =>
-                current.map((booking) =>
-                    booking._id === bookingId ? { ...booking, status: newStatus } : booking
-                )
-            );
-            setUpdatingStatus({});
-        } catch (err) {
-            console.error("Failed to update booking status", err);
-            alert("Failed to update booking status");
-        } finally {
-            setUpdatingBookingId(null);
+            await API.delete(`/blogs/${blogId}`);
+            setBlogs((current) => current.filter((blog) => blog._id !== blogId));
+            setMessage("Blog deleted successfully.");
+        } catch (error) {
+            console.error("Failed to delete blog", error);
+            setMessage(error.response?.data?.message || "Could not delete blog right now.");
         }
     };
 
-    const formatDate = (dateString) => {
-        if (!dateString) return "N/A";
-        const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
-        return new Date(dateString).toLocaleDateString('en-US', options);
+    const handleEditBlog = (blog) => {
+        setEditingBlogId(blog._id);
+        setBlogForm({
+            title: blog.title || "",
+            description: blog.description || "",
+            image: blog.image || ""
+        });
+    };
+
+    const handleDeleteJob = async (jobId) => {
+        try {
+            await API.delete(`/job-notifications/${jobId}`);
+            setJobs((current) => current.filter((job) => job._id !== jobId));
+            setMessage("Job notification deleted successfully.");
+        } catch (error) {
+            console.error("Failed to delete job notification", error);
+            setMessage(error.response?.data?.message || "Could not delete job notification right now.");
+        }
+    };
+
+    const handleEditJob = (job) => {
+        setEditingJobId(job._id);
+        setJobForm({
+            title: job.title || "",
+            description: job.description || "",
+            requiredDocuments: job.requiredDocuments || "",
+            image: job.image || ""
+        });
+    };
+
+    const downloadDocument = async (url, filename) => {
+        try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = downloadUrl;
+            link.download = filename || "document";
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(downloadUrl);
+        } catch (error) {
+            console.error("Failed to download document", error);
+            setMessage("Could not download the selected document.");
+        }
     };
 
     const getStatusBadge = (status) => {
-        const s = status?.toLowerCase() || "pending";
-        if (s === "completed" || s === "approved" || s === "done" || s === "successful") return "bg-green-100 text-green-700";
-        if (s === "rejected" || s === "cancelled") return "bg-red-100 text-red-700";
-        if (s === "in-progress" || s === "in progress") return "bg-blue-100 text-blue-700";
-        return "bg-yellow-100 text-yellow-700";
+        const classes = {
+            "awaiting-payment": "bg-yellow-100 text-yellow-700 border-yellow-200",
+            pending: "bg-orange-100 text-orange-700 border-orange-200",
+            confirmed: "bg-blue-100 text-blue-700 border-blue-200",
+            "in-progress": "bg-indigo-100 text-indigo-700 border-indigo-200",
+            completed: "bg-emerald-100 text-emerald-700 border-emerald-200",
+            cancelled: "bg-rose-100 text-rose-700 border-rose-200"
+        };
+
+        return classes[status] || "bg-slate-100 text-slate-700 border-slate-200";
     };
 
-    // Download a document by fetching the blob and triggering a client-side download.
-    const downloadDocument = async (doc) => {
-        try {
-            const headers = {};
-            const token = localStorage.getItem('token') || localStorage.getItem('authToken') || null;
-            if (token) headers['Authorization'] = `Bearer ${token}`;
-
-            const res = await fetch(doc.url, { mode: 'cors', headers });
-
-            if (!res.ok) {
-                // If auth required or forbidden, open in a new tab so user can sign-in or see the error page
-                if (res.status === 401 || res.status === 403) {
-                    window.open(doc.url, '_blank', 'noopener');
-                    return;
-                }
-                throw new Error(`Failed to fetch file: ${res.status}`);
-            }
-
-            const contentType = res.headers.get('content-type') || '';
-            // If the response is an HTML error page, open it in a new tab instead of trying to download
-            if (contentType.includes('text/html')) {
-                window.open(doc.url, '_blank', 'noopener');
-                return;
-            }
-
-            const blob = await res.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-
-            // Try to derive filename from the response headers if not provided
-            let filename = doc.filename;
-            const cd = res.headers.get('content-disposition');
-            if (!filename && cd) {
-                const m = cd.match(/filename\*?=(?:UTF-8''?)?"?([^";]+)/);
-                if (m) filename = decodeURIComponent(m[1]);
-            }
-
-            a.download = filename || `document`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            window.URL.revokeObjectURL(url);
-        } catch (err) {
-            console.error('Download failed', err);
-            // Fallback: open the file in a new tab
-            window.open(doc.url, '_blank', 'noopener');
+    const formatDate = (value) => {
+        if (!value) {
+            return "N/A";
         }
+
+        return new Date(value).toLocaleString("en-US", {
+            dateStyle: "medium",
+            timeStyle: "short"
+        });
     };
 
-    if (isLoading) {
+    if (loading) {
         return (
-            <div className="min-h-screen bg-[#fafbfc] dark:bg-gray-900 py-10 px-4 flex items-center justify-center">
-                <div className="text-xl font-bold text-gray-500 dark:text-gray-400 dark:text-gray-500 animate-pulse">Loading Admin Dashboard...</div>
+            <div className="min-h-screen bg-[#fafbfc] dark:bg-gray-900 px-4 py-10 sm:px-6 lg:px-8">
+                <div className="max-w-7xl mx-auto">
+                    <div className="animate-pulse rounded-[2rem] bg-white dark:bg-gray-800 h-28 border border-gray-100 dark:border-gray-700" />
+                </div>
             </div>
         );
     }
-
-    if (error) {
-        return (
-            <div className="min-h-screen bg-[#fafbfc] dark:bg-gray-900 py-10 px-4 flex flex-col items-center justify-center">
-                <div className="text-xl font-bold text-red-500 mb-4">{error}</div>
-                <p className="text-gray-500 dark:text-gray-400 dark:text-gray-500 text-center max-w-md">
-                    Please ensure you have admin privileges and the backend server is running properly.
-                </p>
-            </div>
-        );
-    }
-
-    // Check if the current category is Printing or Document to show the file section
-    const showFileSection = ["printing", "document"].includes(serviceForm.category.toLowerCase());
 
     return (
         <div className="min-h-screen bg-[#fafbfc] dark:bg-gray-900 py-10 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-7xl mx-auto space-y-10">
-                <div>
-                    <h1 className="text-3xl md:text-4xl font-black text-[#0b132b] dark:text-white tracking-tight">Admin Dashboard</h1>
-                    <p className="text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-2 font-medium">Manage users, bookings, and cafe services.</p>
+            <div className="max-w-7xl mx-auto space-y-8">
+                <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
+                    <div>
+                        <p className="text-sm uppercase tracking-[0.3em] font-black text-orange-500">Admin Dashboard</p>
+                        <h1 className="text-3xl md:text-4xl font-black text-[#0b132b] dark:text-white mt-3">Operations center</h1>
+                        <p className="text-gray-500 dark:text-gray-400 mt-2 font-medium max-w-2xl">Manage services, monitor booking requests, and publish blogs or job notifications from one control panel.</p>
+                    </div>
                 </div>
 
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    <div className="bg-white dark:bg-gray-800 p-7 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm">
-                        <h2 className="text-lg font-bold text-gray-500 dark:text-gray-400 dark:text-gray-500 mb-2">Total Users</h2>
-                        <p className="text-4xl font-black text-[#0b132b] dark:text-white">{stats?.totalUsers || 0}</p>
+                {message && (
+                    <div className="rounded-2xl border border-orange-200 bg-orange-50 dark:bg-orange-900/20 px-4 py-3 text-sm font-bold text-orange-700 dark:text-orange-200">
+                        {message}
                     </div>
-                    <div className="bg-white dark:bg-gray-800 p-7 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm">
-                        <h2 className="text-lg font-bold text-gray-500 dark:text-gray-400 dark:text-gray-500 mb-2">Total Services</h2>
-                        <p className="text-4xl font-black text-[#0b132b] dark:text-white">{stats?.totalServices || 0}</p>
-                    </div>
-                    <div className="bg-white dark:bg-gray-800 p-7 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm">
-                        <h2 className="text-lg font-bold text-gray-500 dark:text-gray-400 dark:text-gray-500 mb-2">Total Bookings</h2>
-                        <p className="text-4xl font-black text-[#0b132b] dark:text-white">{stats?.totalBookings || 0}</p>
-                    </div>
-                    <div className="bg-white dark:bg-gray-800 p-7 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm">
-                        <h2 className="text-lg font-bold text-gray-500 dark:text-gray-400 dark:text-gray-500 mb-2">Pending Bookings</h2>
-                        <p className="text-4xl font-black text-orange-500">{stats?.pendingBookings || 0}</p>
-                    </div>
-                </motion.div>
+                )}
 
-                {/* Tabs */}
-                <div className="flex gap-4 border-b border-gray-200 dark:border-gray-700">
-                    <button
-                        onClick={() => setActiveTab("services")}
-                        className={`px-6 py-3 font-bold text-lg transition-all ${activeTab === "services"
-                            ? "text-[#0b132b] dark:text-white border-b-4 border-orange-500"
-                            : "text-gray-500 dark:text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:text-gray-300"
-                            }`}
-                    >
-                        Manage Services
-                    </button>
-                    <button
-                        onClick={() => setActiveTab("bookings")}
-                        className={`px-6 py-3 font-bold text-lg transition-all ${activeTab === "bookings"
-                            ? "text-[#0b132b] dark:text-white border-b-4 border-orange-500"
-                            : "text-gray-500 dark:text-gray-400 dark:text-gray-500 hover:text-gray-700 dark:text-gray-300"
-                            }`}
-                    >
-                        Manage Bookings ({allBookings.length})
-                    </button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                    <div className="rounded-[1.5rem] bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-5">
+                        <p className="text-sm uppercase tracking-[0.2em] font-black text-gray-400">Users</p>
+                        <p className="mt-3 text-3xl font-black text-[#0b132b] dark:text-white">{stats.totalUsers}</p>
+                    </div>
+                    <div className="rounded-[1.5rem] bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-5">
+                        <p className="text-sm uppercase tracking-[0.2em] font-black text-gray-400">Services</p>
+                        <p className="mt-3 text-3xl font-black text-[#0b132b] dark:text-white">{stats.totalServices}</p>
+                    </div>
+                    <div className="rounded-[1.5rem] bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-5">
+                        <p className="text-sm uppercase tracking-[0.2em] font-black text-gray-400">Bookings</p>
+                        <p className="mt-3 text-3xl font-black text-[#0b132b] dark:text-white">{stats.totalBookings}</p>
+                    </div>
+                    <div className="rounded-[1.5rem] bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-5">
+                        <p className="text-sm uppercase tracking-[0.2em] font-black text-gray-400">Pending</p>
+                        <p className="mt-3 text-3xl font-black text-[#0b132b] dark:text-white">{stats.pendingBookings}</p>
+                    </div>
                 </div>
 
-                {/* SERVICES TAB */}
-                {activeTab === "services" && (
-                    <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-8 items-start">
-                        <section className="bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm">
-                            <h2 className="text-2xl font-black text-[#0b132b] dark:text-white mb-1">Add Service</h2>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 dark:text-gray-500 mb-6">Create a service that users can browse and book.</p>
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    <section className="bg-white dark:bg-gray-800 rounded-[2rem] border border-gray-100 dark:border-gray-700 p-6 shadow-sm">
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <p className="text-sm uppercase tracking-[0.3em] font-black text-gray-400 dark:text-gray-500">Manage services</p>
+                                <h2 className="text-xl font-black text-[#0b132b] dark:text-white mt-2">Create new offerings</h2>
+                            </div>
+                        </div>
 
-                            {serviceMessage && (
-                                <div className="mb-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-4 py-3 text-sm font-semibold text-gray-600">
-                                    {serviceMessage}
-                                </div>
-                            )}
-
-                            <form onSubmit={handleCreateService} className="space-y-4">
-                                <input
-                                    type="text"
-                                    name="title"
-                                    value={serviceForm.title}
-                                    onChange={handleFormChange}
-                                    placeholder="Service title"
-                                    required
-                                    minLength={3}
-                                    className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-4 py-3 rounded-xl outline-none focus:bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/40"
-                                />
-
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <select
-                                        name="category"
-                                        value={serviceForm.category}
-                                        onChange={handleFormChange}
-                                        className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-4 py-3 rounded-xl outline-none focus:bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/40"
-                                    >
-                                        {categories.map((category) => (
-                                            <option key={category} value={category.toLowerCase()}>
-                                                {category}
-                                            </option>
-                                        ))}
+                        <form onSubmit={handleCreateService} className="space-y-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <label className="text-sm font-bold text-gray-700 dark:text-gray-300">
+                                    Service title
+                                    <input value={serviceForm.title} onChange={(event) => setServiceForm((current) => ({ ...current, title: event.target.value }))} className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2" />
+                                </label>
+                                <label className="text-sm font-bold text-gray-700 dark:text-gray-300">
+                                    Category
+                                    <select value={serviceForm.category} onChange={(event) => setServiceForm((current) => ({ ...current, category: event.target.value }))} className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2">
+                                        <option>Computer Repair</option>
+                                        <option>Network & Internet</option>
+                                        <option>Cyber Cafe Setup</option>
+                                        <option>Software Installation</option>
                                     </select>
+                                </label>
+                            </div>
 
-                                    <input
-                                        type="number"
-                                        name="price"
-                                        value={serviceForm.price}
-                                        onChange={handleFormChange}
-                                        placeholder="Price"
-                                        required
-                                        min="0"
-                                        className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-4 py-3 rounded-xl outline-none focus:bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/40"
-                                    />
-                                </div>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">
+                                Description
+                                <textarea value={serviceForm.description} onChange={(event) => setServiceForm((current) => ({ ...current, description: event.target.value }))} rows={3} className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2" />
+                            </label>
 
-                                {showFileSection && (
-                                    <motion.div
-                                        initial={{ opacity: 0, height: 0 }}
-                                        animate={{ opacity: 1, height: "auto" }}
-                                        className="p-4 bg-blue-50/50 rounded-xl border border-blue-100 space-y-2"
-                                    >
-                                        <label className="text-sm font-bold text-[#0b132b] dark:text-white block">
-                                            Upload Document/Template <span className="text-gray-400 dark:text-gray-500 font-normal">(Optional)</span>
-                                        </label>
-                                        <input
-                                            id="document-upload"
-                                            type="file"
-                                            name="document"
-                                            accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
-                                            onChange={handleFileChange}
-                                            className="w-full text-sm text-gray-600 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer outline-none focus:ring-2 focus:ring-blue-500/40"
-                                        />
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500 font-medium">Supported formats: PDF, Word, PNG, JPG</p>
-                                    </motion.div>
-                                )}
-
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                    <input
-                                        type="number"
-                                        name="durationValue"
-                                        value={serviceForm.durationValue}
-                                        onChange={handleFormChange}
-                                        min="1"
-                                        className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-4 py-3 rounded-xl outline-none focus:bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/40"
-                                    />
-
-                                    <select
-                                        name="durationUnit"
-                                        value={serviceForm.durationUnit}
-                                        onChange={handleFormChange}
-                                        className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-4 py-3 rounded-xl outline-none focus:bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/40"
-                                    >
-                                        <option value="hours">hours</option>
-                                        <option value="days">days</option>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <label className="text-sm font-bold text-gray-700 dark:text-gray-300">
+                                    Price
+                                    <input type="number" min="0" value={serviceForm.price} onChange={(event) => setServiceForm((current) => ({ ...current, price: event.target.value }))} className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2" />
+                                </label>
+                                <label className="text-sm font-bold text-gray-700 dark:text-gray-300">
+                                    Duration
+                                    <input type="number" min="1" value={serviceForm.durationValue} onChange={(event) => setServiceForm((current) => ({ ...current, durationValue: event.target.value }))} className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2" />
+                                </label>
+                                <label className="text-sm font-bold text-gray-700 dark:text-gray-300">
+                                    Unit
+                                    <select value={serviceForm.durationUnit} onChange={(event) => setServiceForm((current) => ({ ...current, durationUnit: event.target.value }))} className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2">
+                                        <option>hours</option>
+                                        <option>days</option>
+                                        <option>minutes</option>
                                     </select>
+                                </label>
+                            </div>
 
-                                    <input
-                                        type="number"
-                                        name="maxBookings"
-                                        value={serviceForm.maxBookings}
-                                        onChange={handleFormChange}
-                                        min="1"
-                                        className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-4 py-3 rounded-xl outline-none focus:bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/40"
-                                        placeholder="Max Bookings"
-                                    />
-                                </div>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">
+                                Required documents
+                                <input value={serviceForm.requiredDocuments} onChange={(event) => setServiceForm((current) => ({ ...current, requiredDocuments: event.target.value }))} placeholder="e.g. Aadhaar Card, Invoice" className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2" />
+                            </label>
 
-                                <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 space-y-3">
-                                    <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300 border-b border-gray-200 dark:border-gray-700 pb-2">Service Requirements (Form Fields for User)</h3>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">
+                                Upload service documents
+                                <input ref={serviceInputRef} type="file" multiple onChange={handleServiceFileChange} accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" className="mt-1 w-full rounded-xl border border-dashed border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-3" />
+                            </label>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
-                                            <input type="checkbox" name="requiresDocuments" checked={serviceForm.requiresDocuments} onChange={handleFormChange} className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4" />
-                                            Requires Document Uploads
-                                        </label>
-                                        <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
-                                            <input type="checkbox" name="requiresTravelDetails" checked={serviceForm.requiresTravelDetails} onChange={handleFormChange} className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4" />
-                                            Requires Travel Details (From/To)
-                                        </label>
-                                        <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
-                                            <input type="checkbox" name="requiresFormName" checked={serviceForm.requiresFormName} onChange={handleFormChange} className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4" />
-                                            Requires Form Name
-                                        </label>
-                                        <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
-                                            <input type="checkbox" name="requiresPickupTime" checked={serviceForm.requiresPickupTime} onChange={handleFormChange} className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4" />
-                                            Requires Pickup Time
-                                        </label>
-                                        <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
-                                            <input type="checkbox" name="requiresPersonalDetails" checked={serviceForm.requiresPersonalDetails} onChange={handleFormChange} className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4" />
-                                            Requires Personal Details (Name, Phone, Email)
-                                        </label>
-                                        <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
-                                            <input type="checkbox" name="isPerItemPricing" checked={serviceForm.isPerItemPricing} onChange={handleFormChange} className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4" />
-                                            Per Item Pricing (e.g., per page)
-                                        </label>
-                                    </div>
-
-                                    {serviceForm.isPerItemPricing && (
-                                        <input
-                                            type="number"
-                                            name="itemPrice"
-                                            value={serviceForm.itemPrice}
-                                            onChange={handleFormChange}
-                                            placeholder="Price per item (Rs.)"
-                                            min="0"
-                                            className="w-full mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-3 py-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/40 text-sm"
-                                        />
-                                    )}
-
-                                    {serviceForm.requiresDocuments && (
-                                        <input
-                                            type="text"
-                                            name="documentTypes"
-                                            value={serviceForm.documentTypes}
-                                            onChange={handleFormChange}
-                                            placeholder="Required Document Types (comma separated, e.g., Aadhar, Photo, Sign)"
-                                            className="w-full mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-3 py-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/40 text-sm"
-                                        />
-                                    )}
-                                </div>
-
-                                <div className="flex items-center gap-2 px-1">
-                                    <label className="flex items-center gap-2 text-sm font-bold text-gray-700 dark:text-gray-300 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            name="isFeatured"
-                                            checked={serviceForm.isFeatured}
-                                            onChange={handleFormChange}
-                                            className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4"
-                                        />
-                                        Show on Home Page (Featured)
-                                    </label>
-                                </div>
-
-                                <input
-                                    type="url"
-                                    name="image"
-                                    value={serviceForm.image}
-                                    onChange={handleFormChange}
-                                    placeholder="Image URL (Thumbnail)"
-                                    className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-4 py-3 rounded-xl outline-none focus:bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/40"
-                                />
-
-                                <textarea
-                                    name="description"
-                                    value={serviceForm.description}
-                                    onChange={handleFormChange}
-                                    placeholder="Service description"
-                                    required
-                                    minLength={10}
-                                    rows={4}
-                                    className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-4 py-3 rounded-xl outline-none focus:bg-white dark:bg-gray-800 focus:ring-2 focus:ring-blue-500/40 resize-none"
-                                />
-
-                                <button
-                                    type="submit"
-                                    disabled={isCreating}
-                                    className="w-full bg-[#0b132b] hover:bg-gray-800 disabled:opacity-60 text-white font-black py-3.5 px-6 rounded-xl shadow-lg transition-colors"
-                                >
-                                    {isCreating ? "Adding..." : "Add Service"}
+                            <button type="submit" disabled={isSubmitting} className="w-full bg-[#0b132b] hover:bg-gray-800 text-white font-black py-3 rounded-xl disabled:opacity-60">
+                                {isSubmitting ? "Saving..." : editingServiceId ? "Update Service" : "Create Service"}
+                            </button>
+                            {editingServiceId && (
+                                <button type="button" onClick={resetServiceForm} className="w-full border border-gray-200 dark:border-gray-700 rounded-xl py-3 text-sm font-black text-gray-700 dark:text-gray-200">
+                                    Cancel edit
                                 </button>
-                            </form>
-                        </section>
+                            )}
+                        </form>
 
-                        <section>
-                            <div className="flex items-center justify-between mb-4">
-                                <h2 className="text-2xl font-black text-[#0b132b] dark:text-white">Service List</h2>
-                                <span className="text-sm font-bold text-gray-400 dark:text-gray-500">{services.length} active</span>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                {services.map((service) => (
-                                    <motion.div
-                                        key={service._id}
-                                        whileHover={{ y: -3 }}
-                                        className="bg-white dark:bg-gray-800 p-5 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm"
-                                    >
-                                        <div className="flex items-start justify-between gap-4">
-                                            <div>
-                                                <p className="text-xs uppercase font-black tracking-wider text-orange-500 mb-2">
-                                                    {service.category}
-                                                </p>
-                                                <h3 className="text-xl font-black text-[#0b132b] dark:text-white">{service.title}</h3>
-                                            </div>
-                                            <p className="font-black text-[#0b132b] dark:text-white whitespace-nowrap">Rs. {service.price}</p>
+                        <div className="mt-6 max-h-[360px] overflow-y-auto space-y-3 pr-1">
+                            {services.map((service) => (
+                                <div key={service._id} className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4">
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div>
+                                            <p className="font-black text-[#0b132b] dark:text-white">{service.title}</p>
+                                            <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">{service.description}</p>
+                                            <p className="text-sm text-gray-500 dark:text-gray-300 mt-2">Rs. {service.price} • {service.duration?.value || 1} {service.duration?.unit || "hours"}</p>
                                         </div>
-
-                                        <p className="text-sm text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-3 line-clamp-3">{service.description}</p>
-
-                                        {service.documentUrl && (
-                                            <a href={service.documentUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-blue-600 hover:text-blue-800 underline mt-3 inline-block">
-                                                View Attached Document
-                                            </a>
-                                        )}
-
-                                        <div className="flex items-center justify-between gap-4 mt-5 pt-4 border-t border-gray-100 dark:border-gray-700">
-                                            <span className="text-xs font-bold text-gray-400 dark:text-gray-500">
-                                                {service.duration?.value || 1} {service.duration?.unit || "hours"}
+                                        <div className="flex flex-col gap-2 items-end">
+                                            <span className={`px-3 py-1 rounded-full text-xs font-black ${service.isActive ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-700"}`}>
+                                                {service.isActive ? "Active" : "Inactive"}
                                             </span>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleDeleteService(service._id)}
-                                                className="text-sm font-black text-red-500 hover:text-red-600"
-                                            >
-                                                Delete
-                                            </button>
+                                            <div className="flex flex-wrap gap-2 justify-end">
+                                                <button type="button" onClick={() => handleEditService(service)} className="px-3 py-1 rounded-lg bg-sky-100 text-sky-700 text-xs font-black">Edit</button>
+                                                <button type="button" onClick={() => handleToggleService(service._id, service.isActive)} className="px-3 py-1 rounded-lg bg-orange-100 text-orange-700 text-xs font-black">Toggle</button>
+                                                <button type="button" onClick={() => handleDeleteService(service._id)} className="px-3 py-1 rounded-lg bg-rose-100 text-rose-700 text-xs font-black">Delete</button>
+                                            </div>
                                         </div>
-                                    </motion.div>
-                                ))}
-                            </div>
-                        </section>
-                    </div>
-                )}
-
-                {/* BOOKINGS TAB */}
-                {activeTab === "bookings" && (
-                    <section className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm">
-                        <div className="p-6 border-b border-gray-100 dark:border-gray-700">
-                            <h2 className="text-2xl font-black text-[#0b132b] dark:text-white">All Bookings</h2>
-                            <p className="text-gray-500 dark:text-gray-400 dark:text-gray-500 mt-2 font-medium">Manage user bookings and update status</p>
-                        </div>
-
-                        <div className="overflow-x-auto">
-                            <table className="w-full">
-                                <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
-                                    <tr>
-                                        <th className="px-6 py-4 text-left font-black text-gray-700 dark:text-gray-300 text-sm">Service</th>
-                                        <th className="px-6 py-4 text-left font-black text-gray-700 dark:text-gray-300 text-sm">User</th>
-                                        <th className="px-6 py-4 text-left font-black text-gray-700 dark:text-gray-300 text-sm">Amount</th>
-                                        <th className="px-6 py-4 text-left font-black text-gray-700 dark:text-gray-300 text-sm">Status</th>
-                                        <th className="px-6 py-4 text-left font-black text-gray-700 dark:text-gray-300 text-sm">Date</th>
-                                        <th className="px-6 py-4 text-left font-black text-gray-700 dark:text-gray-300 text-sm">Documents</th>
-                                        <th className="px-6 py-4 text-left font-black text-gray-700 dark:text-gray-300 text-sm">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-200">
-                                    {allBookings.length === 0 ? (
-                                        <tr>
-                                            <td colSpan="7" className="px-6 py-8 text-center text-gray-500 dark:text-gray-400 dark:text-gray-500 font-bold">
-                                                No bookings found
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        allBookings.map((booking) => (
-                                            <tr key={booking._id} className="hover:bg-gray-50 dark:bg-gray-900 transition-colors">
-                                                <td className="px-6 py-4">
-                                                    <div>
-                                                        <p className="font-black text-[#0b132b] dark:text-white">{booking.service?.title || "Unknown"}</p>
-                                                        <p className="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">{booking.service?.category || ""}</p>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <div>
-                                                        <p className="font-bold text-[#0b132b] dark:text-white">{booking.personalDetails?.name || booking.user?.name || "N/A"}</p>
-                                                        <p className="text-xs text-gray-500 dark:text-gray-400 dark:text-gray-500">{booking.personalDetails?.phone || booking.user?.email || "N/A"}</p>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <p className="font-black text-[#0b132b] dark:text-white">Rs. {booking.amount}</p>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusBadge(booking.status)}`}>
-                                                        {booking.status}
-                                                    </span>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <p className="text-sm text-gray-600">{formatDate(booking.bookingDate || booking.createdAt)}</p>
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    {booking.documents && booking.documents.length > 0 ? (
-                                                        <div className="flex flex-col gap-1">
-                                                            {booking.documents.map((doc, idx) => (
-                                                                <a
-                                                                    key={idx}
-                                                                    href={doc.url}
-                                                                    onClick={(e) => { e.preventDefault(); downloadDocument(doc); }}
-                                                                    rel="noopener noreferrer"
-                                                                    download={doc.filename || `Document-${idx + 1}`}
-                                                                    className="text-sm font-bold text-blue-600 hover:text-blue-800 underline"
-                                                                >
-                                                                    {doc.filename || `Document ${idx + 1}`}
-                                                                </a>
-                                                            ))}
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-xs text-gray-400">—</span>
-                                                    )}
-                                                </td>
-                                                <td className="px-6 py-4">
-                                                    <select
-                                                        value={updatingStatus[booking._id] || booking.status}
-                                                        onChange={(e) => handleUpdateBookingStatus(booking._id, e.target.value)}
-                                                        disabled={updatingBookingId === booking._id}
-                                                        className="px-3 py-2 border border-gray-300 rounded-lg text-sm font-bold text-[#0b132b] dark:text-white cursor-pointer hover:bg-gray-50 dark:bg-gray-900 transition-colors disabled:opacity-50"
-                                                    >
-                                                        {statusOptions.map((status) => (
-                                                            <option key={status} value={status}>
-                                                                {status}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                </td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </section>
-                )}
-
-                {stats?.recentBookings?.length > 0 && activeTab === "services" && (
-                    <section className="bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm">
-                        <h2 className="text-2xl font-black text-[#0b132b] dark:text-white mb-5">Recent Bookings</h2>
-                        <div className="space-y-3">
-                            {stats.recentBookings.map((booking) => (
-                                <div key={booking._id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 dark:border-gray-700 pb-3 last:border-b-0 last:pb-0">
-                                    <div>
-                                        <p className="font-black text-[#0b132b] dark:text-white">{booking.service?.title || "Unknown service"}</p>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400 dark:text-gray-500">{booking.user?.name || "Unknown user"} - {booking.user?.email || "No email"}</p>
                                     </div>
-                                    <span className={`text-xs uppercase font-black tracking-wider px-3 py-1 rounded-full ${getStatusBadge(booking.status)}`}>
-                                        {booking.status}
-                                    </span>
+                                    {service.documents?.length > 0 && (
+                                        <div className="mt-3">
+                                            <p className="text-xs font-black uppercase text-gray-400">Attached docs</p>
+                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                {service.documents.map((document, index) => (
+                                                    <button key={`${document.url}-${index}`} type="button" onClick={() => downloadDocument(document.url, document.filename)} className="px-3 py-1 rounded-full bg-white dark:bg-gray-800 text-xs font-bold border border-gray-200 dark:border-gray-700">
+                                                        {document.filename}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>
                     </section>
-                )}
+
+                    <section className="bg-white dark:bg-gray-800 rounded-[2rem] border border-gray-100 dark:border-gray-700 p-6 shadow-sm">
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <p className="text-sm uppercase tracking-[0.3em] font-black text-gray-400 dark:text-gray-500">Booking queue</p>
+                                <h2 className="text-xl font-black text-[#0b132b] dark:text-white mt-2">Customer requests</h2>
+                            </div>
+                        </div>
+
+                        <div className="max-h-[720px] overflow-y-auto space-y-3 pr-1">
+                            {bookings.map((booking) => (
+                                <div key={booking._id} className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4">
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div>
+                                            <p className="font-black text-[#0b132b] dark:text-white">{booking.service?.title || "Service"}</p>
+                                            <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">Customer: {booking.personalDetails?.name || booking.user?.name || "Unknown"}</p>
+                                            <p className="text-sm text-gray-500 dark:text-gray-300">{formatDate(booking.createdAt)}</p>
+                                        </div>
+                                        <span className={`px-3 py-1 rounded-full border text-xs font-black ${getStatusBadge(booking.status)}`}>{booking.status}</span>
+                                    </div>
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        {['awaiting-payment', 'pending', 'confirmed', 'in-progress', 'completed', 'cancelled'].map((status) => (
+                                            <button key={status} type="button" onClick={() => handleBookingStatusUpdate(booking._id, status)} className="px-3 py-1 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs font-bold">
+                                                {status}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    {booking.documents?.length > 0 && (
+                                        <div className="mt-3">
+                                            <p className="text-xs font-black uppercase text-gray-400">Submitted docs</p>
+                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                {booking.documents.map((document, index) => (
+                                                    <button key={`${document.url}-${index}`} type="button" onClick={() => downloadDocument(document.url, document.filename)} className="px-3 py-1 rounded-full bg-white dark:bg-gray-800 text-xs font-bold border border-gray-200 dark:border-gray-700">
+                                                        {document.filename}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                </div>
+
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    <section className="bg-white dark:bg-gray-800 rounded-[2rem] border border-gray-100 dark:border-gray-700 p-6 shadow-sm">
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <p className="text-sm uppercase tracking-[0.3em] font-black text-gray-400 dark:text-gray-500">Publish blog</p>
+                                <h2 className="text-xl font-black text-[#0b132b] dark:text-white mt-2">Create a blog post</h2>
+                            </div>
+                        </div>
+                        <form onSubmit={handleCreateBlog} className="space-y-3">
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">
+                                Title
+                                <input value={blogForm.title} onChange={(event) => setBlogForm((current) => ({ ...current, title: event.target.value }))} className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2" />
+                            </label>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">
+                                Description
+                                <textarea value={blogForm.description} onChange={(event) => setBlogForm((current) => ({ ...current, description: event.target.value }))} rows={4} className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2" />
+                            </label>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">
+                                Cover image
+                                <input ref={blogInputRef} type="file" onChange={handleBlogFileChange} className="mt-1 w-full rounded-xl border border-dashed border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-3" />
+                            </label>
+                            <button type="submit" disabled={isSubmitting} className="w-full bg-[#0b132b] hover:bg-gray-800 text-white font-black py-3 rounded-xl disabled:opacity-60">
+                                {isSubmitting ? "Saving..." : editingBlogId ? "Update Blog" : "Publish Blog"}
+                            </button>
+                            {editingBlogId && (
+                                <button type="button" onClick={resetBlogForm} className="w-full border border-gray-200 dark:border-gray-700 rounded-xl py-3 text-sm font-black text-gray-700 dark:text-gray-200">
+                                    Cancel edit
+                                </button>
+                            )}
+                        </form>
+
+                        <div className="mt-6 max-h-[260px] overflow-y-auto space-y-3 pr-1">
+                            {blogs.map((blog) => (
+                                <div key={blog._id} className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4">
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div>
+                                            <p className="font-black text-[#0b132b] dark:text-white">{blog.title}</p>
+                                            <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">{blog.description}</p>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button type="button" onClick={() => handleEditBlog(blog)} className="px-3 py-1 rounded-lg bg-sky-100 text-sky-700 text-xs font-black">Edit</button>
+                                            <button type="button" onClick={() => handleDeleteBlog(blog._id)} className="px-3 py-1 rounded-lg bg-rose-100 text-rose-700 text-xs font-black">Delete</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+
+                    <section className="bg-white dark:bg-gray-800 rounded-[2rem] border border-gray-100 dark:border-gray-700 p-6 shadow-sm">
+                        <div className="flex items-center justify-between mb-4">
+                            <div>
+                                <p className="text-sm uppercase tracking-[0.3em] font-black text-gray-400 dark:text-gray-500">Publish job notification</p>
+                                <h2 className="text-xl font-black text-[#0b132b] dark:text-white mt-2">Share new openings</h2>
+                            </div>
+                        </div>
+                        <form onSubmit={handleCreateJob} className="space-y-3">
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">
+                                Title
+                                <input value={jobForm.title} onChange={(event) => setJobForm((current) => ({ ...current, title: event.target.value }))} className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2" />
+                            </label>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">
+                                Description
+                                <textarea value={jobForm.description} onChange={(event) => setJobForm((current) => ({ ...current, description: event.target.value }))} rows={4} className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2" />
+                            </label>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">
+                                Required documents
+                                <input value={jobForm.requiredDocuments} onChange={(event) => setJobForm((current) => ({ ...current, requiredDocuments: event.target.value }))} className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2" />
+                            </label>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">
+                                Cover image
+                                <input ref={jobInputRef} type="file" onChange={handleJobFileChange} className="mt-1 w-full rounded-xl border border-dashed border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-3" />
+                            </label>
+                            <button type="submit" disabled={isSubmitting} className="w-full bg-[#0b132b] hover:bg-gray-800 text-white font-black py-3 rounded-xl disabled:opacity-60">
+                                {isSubmitting ? "Saving..." : editingJobId ? "Update Job Notification" : "Create Job Notification"}
+                            </button>
+                            {editingJobId && (
+                                <button type="button" onClick={resetJobForm} className="w-full border border-gray-200 dark:border-gray-700 rounded-xl py-3 text-sm font-black text-gray-700 dark:text-gray-200">
+                                    Cancel edit
+                                </button>
+                            )}
+                        </form>
+
+                        <div className="mt-6 max-h-[260px] overflow-y-auto space-y-3 pr-1">
+                            {jobs.map((job) => (
+                                <div key={job._id} className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4">
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div>
+                                            <p className="font-black text-[#0b132b] dark:text-white">{job.title}</p>
+                                            <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">{job.description}</p>
+                                            {job.requiredDocuments && (
+                                                <p className="text-sm text-gray-500 dark:text-gray-300 mt-2">Required docs: {job.requiredDocuments}</p>
+                                            )}
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button type="button" onClick={() => handleEditJob(job)} className="px-3 py-1 rounded-lg bg-sky-100 text-sky-700 text-xs font-black">Edit</button>
+                                            <button type="button" onClick={() => handleDeleteJob(job._id)} className="px-3 py-1 rounded-lg bg-rose-100 text-rose-700 text-xs font-black">Delete</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                </div>
             </div>
         </div>
     );

@@ -7,9 +7,23 @@ import User from "../models/User.js";
 // @access  Private
 export const createBooking = async (req, res) => {
     try {
-        const { serviceId, bookingDate, description, useEMI, emiMonths, quantity = 1, travelDetails, formName, personalDetails, documents } = req.body;
+        const {
+            serviceId,
+            bookingDate,
+            description,
+            useEMI,
+            emiMonths,
+            quantity = 1,
+            travelDetails,
+            formName,
+            personalDetails,
+            documents,
+            paymentStatus = "pending",
+            paymentMethod = "wallet",
+            paymentId,
+            status
+        } = req.body;
 
-        // Validation
         if (!serviceId || !bookingDate) {
             return res.status(400).json({
                 success: false,
@@ -33,7 +47,6 @@ export const createBooking = async (req, res) => {
             });
         }
 
-        // Check availability
         if (service.currentBookings >= service.maxBookings) {
             return res.status(400).json({
                 success: false,
@@ -46,6 +59,7 @@ export const createBooking = async (req, res) => {
             : service.price;
 
         const amount = unitPrice * quantity;
+        const nextStatus = status || (paymentStatus === "completed" ? "pending" : "awaiting-payment");
 
         const booking = await Booking.create({
             user: req.user.id,
@@ -58,17 +72,19 @@ export const createBooking = async (req, res) => {
             personalDetails,
             documents,
             description,
+            status: nextStatus,
+            paymentStatus,
+            paymentMethod,
+            paymentId,
             emiDetails: {
                 enabled: useEMI || false,
                 months: emiMonths || null
             }
         });
 
-        // Increment service booking count
         service.currentBookings += 1;
         await service.save();
 
-        // Add to user's booking history
         await User.findByIdAndUpdate(req.user.id, {
             $push: { bookingHistory: booking._id },
             $inc: { totalBookings: 1 }
@@ -98,7 +114,6 @@ export const getAllBookings = async (req, res) => {
 
         let query = {};
 
-        // If user is not admin, show only their bookings
         if (req.user.role !== "admin") {
             query.user = req.user.id;
         }
@@ -153,7 +168,6 @@ export const getBookingById = async (req, res) => {
             });
         }
 
-        // Check if user has permission to view
         if (req.user.role !== "admin" && booking.user._id.toString() !== req.user.id) {
             return res.status(403).json({
                 success: false,
@@ -200,7 +214,6 @@ export const updateBookingStatus = async (req, res) => {
             });
         }
 
-        // If booking is completed, update service booking count
         if (status === "completed") {
             booking.completionDate = new Date();
             await booking.save();
@@ -248,7 +261,6 @@ export const rateBooking = async (req, res) => {
             });
         }
 
-        // Check if user has permission
         if (booking.user.toString() !== req.user.id && req.user.role !== "admin") {
             return res.status(403).json({
                 success: false,
@@ -263,7 +275,6 @@ export const rateBooking = async (req, res) => {
 
         await booking.save();
 
-        // Update service rating
         const bookings = await Booking.find({ service: booking.service, "rating.score": { $exists: true } });
         const avgRating = bookings.reduce((acc, b) => acc + b.rating.score, 0) / bookings.length;
 
@@ -299,7 +310,6 @@ export const cancelBooking = async (req, res) => {
             });
         }
 
-        // Check if user has permission
         if (booking.user.toString() !== req.user.id && req.user.role !== "admin") {
             return res.status(403).json({
                 success: false,
@@ -317,7 +327,6 @@ export const cancelBooking = async (req, res) => {
         booking.status = "cancelled";
         await booking.save();
 
-        // Update service availability
         const service = await Service.findById(booking.service);
         if (service && service.currentBookings > 0) {
             service.currentBookings -= 1;

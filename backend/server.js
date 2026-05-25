@@ -11,6 +11,8 @@ import bookingRoutes from "./routes/bookingRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
+import blogRoutes from "./routes/blogRoutes.js";
+import jobNotificationRoutes from "./routes/jobNotificationRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 
 dotenv.config();
@@ -41,6 +43,8 @@ app.use("/api/bookings", bookingRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/blogs", blogRoutes);
+app.use("/api/job-notifications", jobNotificationRoutes);
 app.use("/api/notifications", notificationRoutes);
 
 // Health check route

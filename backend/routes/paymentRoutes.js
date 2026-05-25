@@ -1,5 +1,6 @@
 import express from "express";
 import {
+    createAdvancePayment,
     createRazorpayOrder,
     verifyPayment,
     getAllPayments,
@@ -12,16 +13,14 @@ import adminCheck from "../middleware/adminMiddleware.js";
 
 const router = express.Router();
 
-// Public routes
+router.post("/advance", protect, createAdvancePayment);
 router.post("/razorpay", protect, createRazorpayOrder);
 router.post("/verify", protect, verifyPayment);
 
-// Protected routes
 router.get("/", protect, getAllPayments);
 router.get("/stats/dashboard", protect, getPaymentStats);
 router.get("/:id", protect, getPaymentById);
 
-// Admin routes
 router.post("/:id/refund", protect, adminCheck, processRefund);
 
 export default router;
